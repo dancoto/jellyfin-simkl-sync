@@ -1,0 +1,24 @@
+{
+  "name": "shoko-anime-sync-bun",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Lightweight media bridging utility syncing Jellyfin watch history to Simkl via Shoko Server using Bun",
+  "license": "MIT",
+  "author": "Daniel Coto",
+  "type": "module",
+  "module": "index.ts",
+  "scripts": {
+    "start": "bun index.ts",
+    "dev": "bun --watch index.ts",
+    "test": "bun test",
+    "lint": "oxlint && tsc --noEmit",
+    "format": "oxfmt",
+    "format:check": "oxfmt --check"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "oxfmt": "^0.53.0",
+    "oxlint": "^1.68.0",
+    "typescript": "^5.0.0"
+  }
+}

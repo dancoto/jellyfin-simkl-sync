@@ -1,0 +1,1 @@
+export { fetchAnidb } from './shoko';
