@@ -1,0 +1,419 @@
+import { sendNotification } from '../ntfy';
+import { appConfig } from '../shared/config';
+import { logger } from '../shared/logger';
+import type { SyncResponse } from './models';
+
+export type ScrobbleQueueItem =
+  | {
+      kind: 'anime_episode';
+      animeId: string;
+      episodeNumber: number;
+      isSpecial: boolean;
+      seriesName?: string;
+      episodeName?: string;
+    }
+  | {
+      kind: 'anime_movie';
+      animeId: string;
+      name: string;
+    }
+  | {
+      kind: 'standard_episode';
+      seriesName?: string;
+      seasonNumber: number;
+      episodeNumber: number;
+      ids: {
+        tvdb?: string;
+        tmdb?: string;
+        imdb?: string;
+      };
+      episodeName?: string;
+    }
+  | {
+      kind: 'standard_movie';
+      name: string;
+      ids: {
+        tmdb?: string;
+        imdb?: string;
+        tvdb?: string;
+      };
+    };
+
+export interface SyncPayload {
+  movies?: Array<{
+    title?: string;
+    ids: Record<string, any>;
+    status: 'completed';
+  }>;
+  shows?: Array<{
+    title?: string;
+    ids: Record<string, any>;
+    seasons: Array<{
+      number: number;
+      episodes: Array<{ number: number }>;
+    }>;
+  }>;
+}
+
+export interface NotFoundMeta {
+  id: string;
+  title: string;
+  link: string;
+  mediaType: string;
+  isAnime: boolean;
+}
+
+/**
+ * Consolidates queued items into an aggregated Simkl /sync/history payload,
+ * grouping episodes by show and season.
+ */
+export const buildSyncPayload = (
+  items: ScrobbleQueueItem[],
+): { payload: SyncPayload; notFoundMap: Map<string, NotFoundMeta> } => {
+  const notFoundMap = new Map<string, NotFoundMeta>();
+
+  // Map of showKey -> { title?, ids, seasons: Map<seasonNumber, Set<episodeNumber>> }
+  const showsMap = new Map<
+    string,
+    {
+      title?: string;
+      ids: Record<string, any>;
+      seasons: Map<number, Set<number>>;
+    }
+  >();
+
+  // Map of movieKey -> { title?: string, ids: Record<string, any> }
+  const moviesMap = new Map<string, { title?: string; ids: Record<string, any> }>();
+
+  for (const item of items) {
+    if (item.kind === 'anime_episode') {
+      const showKey = `anidb:${item.animeId}`;
+      let showEntry = showsMap.get(showKey);
+      if (!showEntry) {
+        showEntry = {
+          title: item.seriesName,
+          ids: { anidb: item.animeId },
+          seasons: new Map(),
+        };
+        showsMap.set(showKey, showEntry);
+      }
+
+      const seasonNum = item.isSpecial ? 0 : 1;
+      let episodesSet = showEntry.seasons.get(seasonNum);
+      if (!episodesSet) {
+        episodesSet = new Set();
+        showEntry.seasons.set(seasonNum, episodesSet);
+      }
+      episodesSet.add(item.episodeNumber);
+
+      const meta: NotFoundMeta = {
+        id: item.animeId,
+        title: item.seriesName
+          ? `${item.seriesName} - ${item.episodeName}`
+          : (item.episodeName ?? 'Anime'),
+        link: `https://anidb.net/anime/${item.animeId}`,
+        mediaType: 'anime series',
+        isAnime: true,
+      };
+      notFoundMap.set(item.animeId, meta);
+      if (item.seriesName) notFoundMap.set(item.seriesName, meta);
+    } else if (item.kind === 'standard_episode') {
+      const showKey =
+        (item.ids.tvdb && `tvdb:${item.ids.tvdb}`) ||
+        (item.ids.tmdb && `tmdb:${item.ids.tmdb}`) ||
+        (item.ids.imdb && `imdb:${item.ids.imdb}`) ||
+        `title:${item.seriesName ?? 'unknown'}`;
+
+      let showEntry = showsMap.get(showKey);
+      if (!showEntry) {
+        const ids: Record<string, any> = {};
+        if (item.ids.tvdb) ids.tvdb = item.ids.tvdb;
+        if (item.ids.tmdb) ids.tmdb = item.ids.tmdb;
+        if (item.ids.imdb) ids.imdb = item.ids.imdb;
+
+        showEntry = {
+          title: item.seriesName,
+          ids,
+          seasons: new Map(),
+        };
+        showsMap.set(showKey, showEntry);
+      }
+
+      let episodesSet = showEntry.seasons.get(item.seasonNumber);
+      if (!episodesSet) {
+        episodesSet = new Set();
+        showEntry.seasons.set(item.seasonNumber, episodesSet);
+      }
+      episodesSet.add(item.episodeNumber);
+
+      const fallbackId =
+        item.ids.tvdb ?? item.ids.tmdb ?? item.ids.imdb ?? item.seriesName ?? 'unknown';
+      const meta: NotFoundMeta = {
+        id: fallbackId,
+        title: item.seriesName
+          ? `${item.seriesName} - ${item.episodeName}`
+          : (item.episodeName ?? 'Series'),
+        link: `https://simkl.com/search/?q=${encodeURIComponent(item.seriesName ?? item.episodeName ?? '')}`,
+        mediaType: 'series',
+        isAnime: false,
+      };
+      notFoundMap.set(fallbackId, meta);
+      if (item.ids.tvdb) notFoundMap.set(item.ids.tvdb, meta);
+      if (item.ids.tmdb) notFoundMap.set(item.ids.tmdb, meta);
+      if (item.ids.imdb) notFoundMap.set(item.ids.imdb, meta);
+      if (item.seriesName) notFoundMap.set(item.seriesName, meta);
+    } else if (item.kind === 'anime_movie') {
+      const movieKey = `anidb:${item.animeId}`;
+      if (!moviesMap.has(movieKey)) {
+        moviesMap.set(movieKey, {
+          title: item.name,
+          ids: { anidb: item.animeId },
+        });
+      }
+      const meta: NotFoundMeta = {
+        id: item.animeId,
+        title: item.name,
+        link: `https://anidb.net/anime/${item.animeId}`,
+        mediaType: 'anime movie',
+        isAnime: true,
+      };
+      notFoundMap.set(item.animeId, meta);
+      if (item.name) notFoundMap.set(item.name, meta);
+    } else if (item.kind === 'standard_movie') {
+      const movieKey =
+        (item.ids.tmdb && `tmdb:${item.ids.tmdb}`) ||
+        (item.ids.imdb && `imdb:${item.ids.imdb}`) ||
+        (item.ids.tvdb && `tvdb:${item.ids.tvdb}`) ||
+        `title:${item.name}`;
+
+      if (!moviesMap.has(movieKey)) {
+        const ids: Record<string, any> = {};
+        if (item.ids.tmdb) ids.tmdb = item.ids.tmdb;
+        if (item.ids.imdb) ids.imdb = item.ids.imdb;
+        if (item.ids.tvdb) ids.tvdb = item.ids.tvdb;
+
+        moviesMap.set(movieKey, {
+          title: item.name,
+          ids,
+        });
+      }
+
+      const fallbackId = item.ids.tmdb ?? item.ids.imdb ?? item.ids.tvdb ?? item.name;
+      const meta: NotFoundMeta = {
+        id: fallbackId,
+        title: item.name,
+        link: `https://simkl.com/search/?q=${encodeURIComponent(item.name)}`,
+        mediaType: 'movie',
+        isAnime: false,
+      };
+      notFoundMap.set(fallbackId, meta);
+      if (item.ids.tmdb) notFoundMap.set(item.ids.tmdb, meta);
+      if (item.ids.imdb) notFoundMap.set(item.ids.imdb, meta);
+      if (item.ids.tvdb) notFoundMap.set(item.ids.tvdb, meta);
+      if (item.name) notFoundMap.set(item.name, meta);
+    }
+  }
+
+  const payload: SyncPayload = {};
+
+  if (moviesMap.size > 0) {
+    payload.movies = Array.from(moviesMap.values()).map((m) => ({
+      title: m.title,
+      ids: m.ids,
+      status: 'completed',
+    }));
+  }
+
+  if (showsMap.size > 0) {
+    payload.shows = Array.from(showsMap.values()).map((s) => {
+      const seasons = Array.from(s.seasons.entries())
+        .sort(([a], [b]) => a - b)
+        .map(([seasonNum, eps]) => ({
+          number: seasonNum,
+          episodes: Array.from(eps)
+            .sort((a, b) => a - b)
+            .map((epNum) => ({ number: epNum })),
+        }));
+
+      return {
+        title: s.title,
+        ids: s.ids,
+        seasons,
+      };
+    });
+  }
+
+  return { payload, notFoundMap };
+};
+
+export const sendSyncPayload = async (
+  payload: SyncPayload,
+  userToken: string,
+  notFoundMap: Map<string, NotFoundMeta>,
+): Promise<{ success: boolean; addedCount: number }> => {
+  const { client_id, app_name } = appConfig.simkl;
+  const url = new URL('https://api.simkl.com/sync/history');
+  url.searchParams.set('client_id', client_id);
+  url.searchParams.set('app_name', app_name);
+  url.searchParams.set('app_version', '2.0');
+
+  const headers = new Headers();
+  headers.append('Content-Type', 'application/json');
+  headers.append('User-Agent', `${app_name}/2.0`);
+  headers.append('Authorization', `Bearer ${userToken}`);
+
+  try {
+    logger.debug('[Batch Scrobble] Simkl history sync payload:', JSON.stringify(payload, null, 2));
+
+    const response = await fetch(url, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(payload),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text().catch(() => '');
+      logger.error(`Simkl sync failed with HTTP ${response.status}: ${errorText}`);
+      return { success: false, addedCount: 0 };
+    }
+
+    const data = (await response.json()) as SyncResponse;
+    logger.debug('[Batch Scrobble] Simkl sync response:', JSON.stringify(data, null, 2));
+
+    // Check not_found items and trigger notifications
+    const allNotFound = [
+      ...(data.not_found?.movies || []),
+      ...(data.not_found?.shows || []),
+      ...(data.not_found?.episodes || []),
+    ];
+
+    const notifiedIds = new Set<string>();
+    for (const nf of allNotFound) {
+      let meta: NotFoundMeta | undefined;
+
+      if (typeof nf === 'object' && nf) {
+        const candidateKeys = [nf.ids?.anidb, nf.ids?.tvdb, nf.ids?.tmdb, nf.ids?.imdb, nf.title]
+          .filter(Boolean)
+          .map(String);
+
+        for (const k of candidateKeys) {
+          if (notFoundMap.has(k)) {
+            meta = notFoundMap.get(k);
+            break;
+          }
+        }
+      } else if (nf) {
+        meta = notFoundMap.get(String(nf));
+      }
+
+      if (meta && !notifiedIds.has(meta.id)) {
+        notifiedIds.add(meta.id);
+        sendNotification({
+          title: `Failed to update Simkl for ${meta.mediaType}`,
+          message: `Item: ${meta.title}\nID: ${meta.id}\nLink: ${meta.link}`,
+          priority: 4,
+        });
+      }
+    }
+
+    const addedCount =
+      (data.added?.movies || 0) + (data.added?.episodes || 0) + (data.added?.shows || 0);
+    return { success: true, addedCount };
+  } catch (error) {
+    console.error('Error sending batch sync payload to Simkl:', error);
+    return { success: false, addedCount: 0 };
+  }
+};
+
+interface UserQueueState {
+  items: ScrobbleQueueItem[];
+  userToken: string;
+  timer?: ReturnType<typeof setTimeout>;
+}
+
+const userQueues = new Map<string, UserQueueState>();
+
+/**
+ * Enqueues a scrobble item for debouncing and batch submission to Simkl.
+ */
+export const enqueueScrobble = async (
+  username: string,
+  userToken: string,
+  item: ScrobbleQueueItem,
+  options?: { debounceMs?: number },
+): Promise<void> => {
+  const defaultDebounce = process.env.NODE_ENV === 'test' ? 0 : 2500;
+  const debounceMs = options?.debounceMs ?? defaultDebounce;
+
+  let queue = userQueues.get(username);
+  if (!queue) {
+    queue = { items: [], userToken };
+    userQueues.set(username, queue);
+  } else {
+    queue.userToken = userToken;
+  }
+
+  queue.items.push(item);
+
+  if (debounceMs <= 0) {
+    await flushUserQueue(username);
+    return;
+  }
+
+  if (queue.timer) {
+    clearTimeout(queue.timer);
+  }
+
+  queue.timer = setTimeout(() => {
+    flushUserQueue(username).catch((err) => {
+      console.error(`Error during debounced queue flush for "${username}":`, err);
+    });
+  }, debounceMs);
+};
+
+/**
+ * Flushes all pending queued items for a specific user and posts to Simkl.
+ */
+export const flushUserQueue = async (username: string): Promise<void> => {
+  const queue = userQueues.get(username);
+  if (!queue || queue.items.length === 0) {
+    return;
+  }
+
+  if (queue.timer) {
+    clearTimeout(queue.timer);
+    queue.timer = undefined;
+  }
+
+  const itemsToFlush = [...queue.items];
+  const userToken = queue.userToken;
+  userQueues.delete(username);
+
+  const { payload, notFoundMap } = buildSyncPayload(itemsToFlush);
+  const totalItems = itemsToFlush.length;
+
+  logger.info(
+    `[Batch Scrobble] Flushing ${totalItems} item(s) for user "${username}" in 1 request to Simkl...`,
+  );
+
+  const result = await sendSyncPayload(payload, userToken, notFoundMap);
+  if (result.success) {
+    logger.info(
+      `[Batch Scrobble] Successfully synced batch of ${totalItems} item(s) for user "${username}".`,
+    );
+  } else {
+    logger.warn(
+      `[Batch Scrobble] Batch sync for user "${username}" completed with errors or failures.`,
+    );
+  }
+};
+
+/**
+ * Flushes all pending queues across all users (e.g. on shutdown).
+ */
+export const flushAllQueues = async (): Promise<void> => {
+  const usernames = Array.from(userQueues.keys());
+  for (const username of usernames) {
+    await flushUserQueue(username);
+  }
+};

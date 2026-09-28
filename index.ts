@@ -10,20 +10,12 @@ import {
   refreshUserToken,
   validateUserToken,
 } from './simkl/auth';
+import { flushAllQueues } from './simkl/batcher';
 
-// Override console methods to prepend local timestamps
-const originalLog = console.log;
-const originalWarn = console.warn;
-const originalError = console.error;
+import { initLogger } from './shared/logger';
 
-const formatLog = (args: any[]) => {
-  const timestamp = new Date().toLocaleString();
-  return [`[${timestamp}]`, ...args];
-};
-
-console.log = (...args) => originalLog(...formatLog(args));
-console.warn = (...args) => originalWarn(...formatLog(args));
-console.error = (...args) => originalError(...formatLog(args));
+// Initialize configurable logger
+initLogger();
 
 // Proactively check and refresh any tokens expiring within 48 hours
 export const checkAndRefreshExpiringTokens = async () => {
@@ -286,3 +278,16 @@ const server = Bun.serve({
 });
 
 console.log(`Server running at ${server.port}`);
+
+const handleShutdown = async (signal: string) => {
+  console.log(`Received ${signal}. Flushing pending scrobbles before exiting...`);
+  try {
+    await flushAllQueues();
+  } catch (err) {
+    console.error('Error flushing queues during shutdown:', err);
+  }
+  process.exit(0);
+};
+
+process.on('SIGINT', () => handleShutdown('SIGINT'));
+process.on('SIGTERM', () => handleShutdown('SIGTERM'));

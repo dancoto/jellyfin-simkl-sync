@@ -8,6 +8,8 @@ export type UserTokenEntry =
       expires_at?: number;
     };
 
+export type LogLevel = 'debug' | 'info' | 'warn' | 'error';
+
 export type Config = {
   jellyfin?: { url: string; token: string };
   simkl: {
@@ -18,6 +20,9 @@ export type Config = {
     users: Record<string, UserTokenEntry>;
   };
   ntfy?: { url: string; token: string; topic: string };
+  logging?: {
+    level?: LogLevel;
+  };
 };
 
 let appConfig: Config;
@@ -53,6 +58,17 @@ function validateConfig(config: any): asserts config is Config {
       throw new Error(
         'Optional "ntfy" block is present but missing required sub-properties (url, token, topic).',
       );
+    }
+  }
+
+  if (config.logging) {
+    if (config.logging.level) {
+      const validLevels = ['debug', 'info', 'warn', 'error'];
+      if (!validLevels.includes(String(config.logging.level).toLowerCase())) {
+        throw new Error(
+          `Invalid "logging.level" value "${config.logging.level}". Allowed values: debug, info, warn, error.`,
+        );
+      }
     }
   }
 }

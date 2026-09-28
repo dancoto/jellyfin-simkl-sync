@@ -123,3 +123,27 @@ flowchart TD
 - [x] Library name based routing: libraries containing `"Anime"` (case-insensitive) route to the AniDB cross-reference engine; other libraries route to the standard non-anime pipeline.
 - [x] Jellyfin API ancestor lookups (`/Items/{id}/Ancestors`) to resolve library name when not supplied in webhook payload.
 - [x] Comprehensive integration tests in `main.test.ts` covering non-anime TV shows (e.g. _Breaking Bad_), non-anime movies (e.g. _Inception_), and fallback handling.
+
+### Phase 5: Web UI & OAuth 2.0 PKCE User Authentication (COMPLETED)
+
+- [x] Web dashboard at `/` with list of Jellyfin users and token health / expiration status.
+- [x] Simkl OAuth 2.0 (AUTH V2) flow implementation using PKCE (`code_verifier`, SHA-256 `code_challenge`, `code_challenge_method=S256`).
+- [x] Endpoints `/auth/login` and `/auth/callback` handling session state verification, mix-up attack prevention (`iss` verification), and code exchange.
+- [x] Auto-refresh expired or nearing expiration access tokens (48-hour proactive check, scheduled 24-hour cycle, and on-demand refresh).
+
+### Phase 6: Debounced Bulk Scrobbler & Season Sync (COMPLETED)
+
+- [x] `simkl/batcher.ts`: Implemented debounced per-user queue (`enqueueScrobble`, `buildSyncPayload`, `sendSyncPayload`).
+- [x] Season & show grouping: Consolidates rapid-fire episode completion webhooks (e.g., when marking an entire season or series watched) into a single `POST /sync/history` payload with grouped seasons and episodes.
+- [x] Rate limit & write-lock mitigation: Completely avoids Simkl's 1 POST/second limit and 20-second per-user write-lock (`400 RATE_LIMIT`).
+- [x] Graceful shutdown: `SIGINT` / `SIGTERM` process hooks flush any in-flight queued scrobbles before exiting.
+- [x] Unit & integration tests in `simkl/batcher.test.ts` and `main.test.ts`.
+
+### Phase 7: Configurable Logging & Robust Fallbacks (COMPLETED)
+
+- [x] Configurable logging in `config.toml` (`[logging] level = "debug" | "info" | "warn" | "error"`).
+- [x] Centralized logging utility in `shared/logger.ts` with formatted tags and timestamps.
+- [x] Detailed visibility on webhook receipt (`PlaybackStart`, `PlaybackProgress`, `PlaybackStop`) and scrobble decisions.
+- [x] Fixed Jellyfin library resolution to exclude server `root` aggregate folders.
+- [x] Fixed Jellyfin API 400 errors by querying non-user-scoped `/Items?ids=...&fields=ProviderIds`.
+- [x] Added anime movie fallback to standard movie pipeline with TMDB/IMDb/TVDB IDs when AniDB mapping is absent.

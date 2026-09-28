@@ -56,8 +56,8 @@ describe('Main Webhook Handler', () => {
         );
       }
 
-      // Mock Jellyfin API: GET /Items/{SeriesId}
-      if (url.includes('/Items/series-jf-1')) {
+      // Mock Jellyfin API: GET /Items/{SeriesId} or /Items?ids={SeriesId}
+      if (url.includes('series-jf-1')) {
         return Promise.resolve(
           new Response(
             JSON.stringify({
@@ -66,6 +66,15 @@ describe('Main Webhook Handler', () => {
               ProviderIds: {
                 Tvdb: '267440',
               },
+              Items: [
+                {
+                  Id: 'series-jf-1',
+                  Name: 'Attack on Titan',
+                  ProviderIds: {
+                    Tvdb: '267440',
+                  },
+                },
+              ],
             }),
           ),
         );
@@ -248,7 +257,7 @@ describe('Main Webhook Handler', () => {
     expect(calls.length).toBe(3);
 
     expect(calls[0][0].toString()).toContain('/Ancestors');
-    expect(calls[1][0].toString()).toContain('/Items/series-jf-1');
+    expect(calls[1][0].toString()).toContain('series-jf-1');
     expect(calls[2][0].toString()).toContain('api.simkl.com/sync/history');
     const simklBody = JSON.parse(calls[2][1].body);
     expect(simklBody.shows[0].ids.anidb).toBe('9541');
@@ -338,5 +347,79 @@ describe('Main Webhook Handler', () => {
     await handleWebhook(payload);
 
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  test('should debounce and batch multiple rapid episode completions of a season into a single Simkl request', async () => {
+    // Simulate user marking 5 episodes of Attack on Titan watched at once
+    for (let ep = 1; ep <= 5; ep++) {
+      handleWebhook(
+        {
+          NotificationUsername: 'test-user',
+          ItemType: 'Episode',
+          Name: `Episode ${ep}`,
+          SeriesName: 'Attack on Titan',
+          LibraryName: 'Anime Shows',
+          SeasonNumber: 1,
+          EpisodeNumber: ep,
+          NotificationType: 'PlaybackStop',
+          RunTimeTicks: 1000,
+          PlaybackPositionTicks: 900,
+          Series_Provider_tvdb: '267440',
+        } as any,
+        { debounceMs: 50 },
+      );
+    }
+
+    // Immediately after, no Simkl fetch should have fired yet
+    expect(fetchMock).toHaveBeenCalledTimes(0);
+
+    // Wait 100ms for debounce timer to fire
+    await new Promise((resolve) => setTimeout(resolve, 100));
+
+    // Exactly 1 batch request sent to Simkl containing all 5 episodes!
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    const calls = fetchMock.mock.calls;
+    expect(calls[0][0].toString()).toContain('api.simkl.com/sync/history');
+
+    const simklBody = JSON.parse(calls[0][1].body);
+    expect(simklBody.shows.length).toBe(1);
+    expect(simklBody.shows[0].ids.anidb).toBe('9541');
+    expect(simklBody.shows[0].seasons.length).toBe(1);
+    expect(simklBody.shows[0].seasons[0].number).toBe(1);
+    expect(simklBody.shows[0].seasons[0].episodes.length).toBe(5);
+    expect(simklBody.shows[0].seasons[0].episodes.map((e: any) => e.number)).toEqual([
+      1, 2, 3, 4, 5,
+    ]);
+  });
+
+  test('should fallback to standard movie pipeline if anime movie has NO matching AniDB mapping', async () => {
+    const payload: any = {
+      NotificationUsername: 'test-user',
+      ItemType: 'Movie',
+      Name: 'Voltage Fighter Gowcaizer',
+      LibraryName: 'anime-movies',
+      NotificationType: 'PlaybackStop',
+      RunTimeTicks: 1000,
+      PlaybackPositionTicks: 900,
+      Provider_tmdb: '94505',
+      Provider_imdb: 'tt0204034',
+      Provider_tvdb: '202176',
+    };
+
+    await handleWebhook(payload);
+
+    expect(fetchMock).toHaveBeenCalled();
+    const calls = fetchMock.mock.calls;
+    expect(calls.length).toBe(1);
+
+    expect(calls[0][0].toString()).toContain('api.simkl.com/sync/history');
+    const simklBody = JSON.parse(calls[0][1].body);
+    expect(simklBody.movies).toBeDefined();
+    expect(simklBody.movies.length).toBe(1);
+    expect(simklBody.movies[0].title).toBe('Voltage Fighter Gowcaizer');
+    expect(simklBody.movies[0].ids.tmdb).toBe('94505');
+    expect(simklBody.movies[0].ids.imdb).toBe('tt0204034');
+    expect(simklBody.movies[0].ids.tvdb).toBe('202176');
   });
 });

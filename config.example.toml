@@ -16,3 +16,7 @@ your_jellyfin_username = "YOUR_SIMKL_USER_TOKEN"
 url = "https://ntfy.sh"
 token = "YOUR_NTFY_TOKEN"
 topic = "media-sync-alerts"
+
+[logging]
+# Log levels: "debug", "info", "warn", "error" (default: "info")
+level = "info"
