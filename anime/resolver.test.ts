@@ -119,6 +119,10 @@ describe('AniBridge Index & Resolver', () => {
     'anidb:9541:S': {
       'tvdb_show:267440:s0': { '1-3': '1-3' },
     },
+    // Queen's Blade: Grimoire (OVA mapped to TVDB S0)
+    'anidb:11257:R': {
+      'tvdb_show:87491:s0': { '1-2': '37-38' },
+    },
     // Princess Mononoke (Movie)
     'anidb:7:R': {
       'tmdb_movie:128': { '1': '1' },
@@ -202,6 +206,21 @@ describe('AniBridge Index & Resolver', () => {
     });
   });
 
+  test('should resolve standalone OVA mapped to TVDB Season 0 as regular episode', () => {
+    const aniBridge = AniBridgeIndex.parse(sampleAniBridgeData);
+    const resolver = new AnimeResolver();
+    resolver.setIndices(aniBridge);
+
+    const ova = resolver.resolveEpisode({ tvdbId: '87491' }, 0, 37);
+    expect(ova).toEqual({
+      animeId: '11257',
+      episodeNumber: 1,
+      isSpecial: false,
+      kind: 'regular',
+      source: 'anibridge',
+    });
+  });
+
   test('should resolve anime movies', () => {
     const aniBridge = AniBridgeIndex.parse(sampleAniBridgeData);
     const resolver = new AnimeResolver();
@@ -242,6 +261,9 @@ describe('Overrides & Fallback Precedence', () => {
   <anime anidbid="200" tvdbid="600" defaulttvdbseason="1" episodeoffset="0">
     <name>Fallback Anime</name>
   </anime>
+  <anime anidbid="201" tvdbid="600" defaulttvdbseason="0" episodeoffset="10">
+    <name>Fallback OVA</name>
+  </anime>
 </anime-list>
 `;
 
@@ -271,6 +293,22 @@ describe('Overrides & Fallback Precedence', () => {
     expect(result).toEqual({
       animeId: '200',
       episodeNumber: 4,
+      isSpecial: false,
+      kind: 'regular',
+      source: 'animelist',
+    });
+  });
+
+  test('should fall back to Anime-Lists for Season 0 OVA with defaulttvdbseason=0', () => {
+    const aniBridge = AniBridgeIndex.parse(aniBridgeData);
+    const animeList = AnimeListIndex.parse(animeListXml);
+    const resolver = new AnimeResolver();
+    resolver.setIndices(aniBridge, null, animeList);
+
+    const result = resolver.resolveEpisode({ tvdbId: '600' }, 0, 12);
+    expect(result).toEqual({
+      animeId: '201',
+      episodeNumber: 2,
       isSpecial: false,
       kind: 'regular',
       source: 'animelist',
