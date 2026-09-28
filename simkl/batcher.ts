@@ -250,6 +250,7 @@ export const sendSyncPayload = async (
   payload: SyncPayload,
   userToken: string,
   notFoundMap: Map<string, NotFoundMeta>,
+  maxRetries: number = 3,
 ): Promise<{ success: boolean; addedCount: number }> => {
   const { client_id, app_name } = appConfig.simkl;
   const url = new URL('https://api.simkl.com/sync/history');
@@ -262,73 +263,114 @@ export const sendSyncPayload = async (
   headers.append('User-Agent', `${app_name}/2.0`);
   headers.append('Authorization', `Bearer ${userToken}`);
 
-  try {
-    logger.debug('[Batch Scrobble] Simkl history sync payload:', JSON.stringify(payload, null, 2));
+  const bodyStr = JSON.stringify(payload);
 
-    const response = await fetch(url, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify(payload),
-    });
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      if (attempt === 0) {
+        logger.debug(
+          '[Batch Scrobble] Simkl history sync payload:',
+          JSON.stringify(payload, null, 2),
+        );
+      } else {
+        logger.info(`[Batch Scrobble] Retrying Simkl sync (attempt ${attempt}/${maxRetries})...`);
+      }
 
-    if (!response.ok) {
-      const errorText = await response.text().catch(() => '');
-      logger.error(`Simkl sync failed with HTTP ${response.status}: ${errorText}`);
+      const response = await fetch(url, {
+        method: 'POST',
+        headers,
+        body: bodyStr,
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => '');
+        const isRateLimit = response.status === 400 && errorText.includes('RATE_LIMIT');
+        const isRetryable = isRateLimit || response.status === 429 || response.status >= 500;
+
+        if (isRetryable && attempt < maxRetries) {
+          const delayMs =
+            process.env.NODE_ENV === 'test'
+              ? 0
+              : isRateLimit
+                ? (attempt + 1) * 7000
+                : (attempt + 1) * 2000;
+          logger.warn(
+            `Simkl sync returned HTTP ${response.status} (${isRateLimit ? 'Per-user lock RATE_LIMIT' : 'Transient error'}). Retrying in ${delayMs}ms...`,
+          );
+          if (delayMs > 0) {
+            await new Promise((resolve) => setTimeout(resolve, delayMs));
+          }
+          continue;
+        }
+
+        logger.error(`Simkl sync failed with HTTP ${response.status}: ${errorText}`);
+        return { success: false, addedCount: 0 };
+      }
+
+      const data = (await response.json()) as SyncResponse;
+      logger.debug('[Batch Scrobble] Simkl sync response:', JSON.stringify(data, null, 2));
+
+      // Check not_found items and trigger notifications
+      const allNotFound = [
+        ...(data.not_found?.movies || []),
+        ...(data.not_found?.shows || []),
+        ...(data.not_found?.episodes || []),
+      ];
+
+      const notifiedIds = new Set<string>();
+      for (const nf of allNotFound) {
+        let meta: NotFoundMeta | undefined;
+
+        if (typeof nf === 'object' && nf) {
+          const candidateKeys = [nf.ids?.anidb, nf.ids?.tvdb, nf.ids?.tmdb, nf.ids?.imdb, nf.title]
+            .filter(Boolean)
+            .map(String);
+
+          for (const k of candidateKeys) {
+            if (notFoundMap.has(k)) {
+              meta = notFoundMap.get(k);
+              break;
+            }
+          }
+        } else if (nf) {
+          meta = notFoundMap.get(String(nf));
+        }
+
+        if (meta && !notifiedIds.has(meta.id)) {
+          notifiedIds.add(meta.id);
+          sendNotification({
+            title: `Failed to update Simkl for ${meta.mediaType}`,
+            message: `Item: ${meta.title}\nID: ${meta.id}\nLink: ${meta.link}`,
+            priority: 4,
+          });
+        }
+      }
+
+      const addedCount =
+        (data.added?.movies || 0) + (data.added?.episodes || 0) + (data.added?.shows || 0);
+      return { success: true, addedCount };
+    } catch (error) {
+      if (attempt < maxRetries) {
+        const delayMs = process.env.NODE_ENV === 'test' ? 0 : (attempt + 1) * 2000;
+        logger.warn(`Network error during Simkl sync: ${error}. Retrying in ${delayMs}ms...`);
+        if (delayMs > 0) {
+          await new Promise((resolve) => setTimeout(resolve, delayMs));
+        }
+        continue;
+      }
+      console.error('Error sending batch sync payload to Simkl after retries:', error);
       return { success: false, addedCount: 0 };
     }
-
-    const data = (await response.json()) as SyncResponse;
-    logger.debug('[Batch Scrobble] Simkl sync response:', JSON.stringify(data, null, 2));
-
-    // Check not_found items and trigger notifications
-    const allNotFound = [
-      ...(data.not_found?.movies || []),
-      ...(data.not_found?.shows || []),
-      ...(data.not_found?.episodes || []),
-    ];
-
-    const notifiedIds = new Set<string>();
-    for (const nf of allNotFound) {
-      let meta: NotFoundMeta | undefined;
-
-      if (typeof nf === 'object' && nf) {
-        const candidateKeys = [nf.ids?.anidb, nf.ids?.tvdb, nf.ids?.tmdb, nf.ids?.imdb, nf.title]
-          .filter(Boolean)
-          .map(String);
-
-        for (const k of candidateKeys) {
-          if (notFoundMap.has(k)) {
-            meta = notFoundMap.get(k);
-            break;
-          }
-        }
-      } else if (nf) {
-        meta = notFoundMap.get(String(nf));
-      }
-
-      if (meta && !notifiedIds.has(meta.id)) {
-        notifiedIds.add(meta.id);
-        sendNotification({
-          title: `Failed to update Simkl for ${meta.mediaType}`,
-          message: `Item: ${meta.title}\nID: ${meta.id}\nLink: ${meta.link}`,
-          priority: 4,
-        });
-      }
-    }
-
-    const addedCount =
-      (data.added?.movies || 0) + (data.added?.episodes || 0) + (data.added?.shows || 0);
-    return { success: true, addedCount };
-  } catch (error) {
-    console.error('Error sending batch sync payload to Simkl:', error);
-    return { success: false, addedCount: 0 };
   }
+
+  return { success: false, addedCount: 0 };
 };
 
 interface UserQueueState {
   items: ScrobbleQueueItem[];
   userToken: string;
   timer?: ReturnType<typeof setTimeout>;
+  isFlushing?: boolean;
 }
 
 const userQueues = new Map<string, UserQueueState>();
@@ -360,6 +402,11 @@ export const enqueueScrobble = async (
     return;
   }
 
+  if (queue.isFlushing) {
+    // Current flush will trigger next flush on completion if items remain
+    return;
+  }
+
   if (queue.timer) {
     clearTimeout(queue.timer);
   }
@@ -380,14 +427,18 @@ export const flushUserQueue = async (username: string): Promise<void> => {
     return;
   }
 
+  if (queue.isFlushing) {
+    return;
+  }
+
   if (queue.timer) {
     clearTimeout(queue.timer);
     queue.timer = undefined;
   }
 
-  const itemsToFlush = [...queue.items];
+  queue.isFlushing = true;
+  const itemsToFlush = queue.items.splice(0, queue.items.length);
   const userToken = queue.userToken;
-  userQueues.delete(username);
 
   const { payload, notFoundMap } = buildSyncPayload(itemsToFlush);
   const totalItems = itemsToFlush.length;
@@ -396,15 +447,33 @@ export const flushUserQueue = async (username: string): Promise<void> => {
     `[Batch Scrobble] Flushing ${totalItems} item(s) for user "${username}" in 1 request to Simkl...`,
   );
 
-  const result = await sendSyncPayload(payload, userToken, notFoundMap);
-  if (result.success) {
-    logger.info(
-      `[Batch Scrobble] Successfully synced batch of ${totalItems} item(s) for user "${username}".`,
-    );
-  } else {
-    logger.warn(
-      `[Batch Scrobble] Batch sync for user "${username}" completed with errors or failures.`,
-    );
+  try {
+    const result = await sendSyncPayload(payload, userToken, notFoundMap);
+    if (result.success) {
+      logger.info(
+        `[Batch Scrobble] Successfully synced batch of ${totalItems} item(s) for user "${username}".`,
+      );
+    } else {
+      logger.warn(
+        `[Batch Scrobble] Batch sync for user "${username}" completed with errors or failures.`,
+      );
+    }
+  } finally {
+    queue.isFlushing = false;
+    if (queue.items.length > 0) {
+      const defaultDebounce = process.env.NODE_ENV === 'test' ? 0 : 2500;
+      if (defaultDebounce <= 0) {
+        await flushUserQueue(username);
+      } else {
+        queue.timer = setTimeout(() => {
+          flushUserQueue(username).catch((err) => {
+            console.error(`Error during subsequent queue flush for "${username}":`, err);
+          });
+        }, defaultDebounce);
+      }
+    } else {
+      userQueues.delete(username);
+    }
   }
 };
 

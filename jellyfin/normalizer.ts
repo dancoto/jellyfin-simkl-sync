@@ -42,6 +42,13 @@ export const normalizeJellyfinWebhook = (payload: RawJellyfinPayload): Normalize
         ? Number(payload.IndexNumber)
         : undefined;
 
+  const episodeNumberEnd =
+    payload.EpisodeNumberEnd !== undefined
+      ? Number(payload.EpisodeNumberEnd)
+      : payload.IndexNumberEnd !== undefined
+        ? Number(payload.IndexNumberEnd)
+        : undefined;
+
   const year = payload.Year !== undefined ? Number(payload.Year) : undefined;
 
   const playbackPositionTicks = Number(payload.PlaybackPositionTicks ?? 0);
@@ -147,6 +154,7 @@ export const normalizeJellyfinWebhook = (payload: RawJellyfinPayload): Normalize
     seriesId,
     seasonNumber,
     episodeNumber,
+    episodeNumberEnd,
     year,
     libraryName,
     path,

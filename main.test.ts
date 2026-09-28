@@ -422,4 +422,34 @@ describe('Main Webhook Handler', () => {
     expect(simklBody.movies[0].ids.imdb).toBe('tt0204034');
     expect(simklBody.movies[0].ids.tvdb).toBe('202176');
   });
+
+  test('should handle multi-episode file (e.g. S01E01-E02) by batching all episodes in range', async () => {
+    const payload: any = {
+      NotificationUsername: 'test-user',
+      ItemType: 'Episode',
+      SeriesName: 'Attack on Titan',
+      Name: 'Episode 1 & 2',
+      SeasonNumber: 1,
+      EpisodeNumber: 1,
+      IndexNumberEnd: 2,
+      LibraryName: 'Anime Shows',
+      NotificationType: 'PlaybackStop',
+      RunTimeTicks: 1000,
+      PlaybackPositionTicks: 900,
+      Series_Provider_tvdb: '267440',
+    };
+
+    await handleWebhook(payload, { debounceMs: 50 });
+    await new Promise((resolve) => setTimeout(resolve, 100));
+
+    expect(fetchMock).toHaveBeenCalled();
+    const calls = fetchMock.mock.calls;
+    expect(calls.length).toBe(1);
+
+    expect(calls[0][0].toString()).toContain('api.simkl.com/sync/history');
+    const simklBody = JSON.parse(calls[0][1].body);
+    expect(simklBody.shows.length).toBe(1);
+    expect(simklBody.shows[0].ids.anidb).toBe('9541');
+    expect(simklBody.shows[0].seasons[0].episodes.map((e: any) => e.number)).toEqual([1, 2]);
+  });
 });
