@@ -6,7 +6,7 @@ import {
   type RawJellyfinPayload,
 } from './jellyfin';
 import { sendNotification } from './ntfy';
-import { appConfig } from './shared/config';
+import { getOrRefreshUserToken } from './simkl/auth';
 import {
   scrobbleAnimeEpisode,
   scrobbleAnimeMovie,
@@ -18,8 +18,8 @@ import {
 export const handleWebhook = async (rawPayload: RawJellyfinPayload) => {
   const event = normalizeJellyfinWebhook(rawPayload);
 
-  // 1. Ensure user has valid token
-  const userToken = appConfig.simkl.users[event.username];
+  // 1. Ensure user has valid token (auto-refreshes if nearing 7-day expiration)
+  const userToken = await getOrRefreshUserToken(event.username);
   if (!userToken) {
     console.warn(`User "${event.username}" has no configured Simkl token. Nothing will be synced.`);
     return;

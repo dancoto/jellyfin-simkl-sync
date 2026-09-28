@@ -130,6 +130,39 @@ export class JellyfinClient {
     this.libraryCache.set(itemId, libraryName);
   }
 
+  public async getUsers(): Promise<Array<{ id: string; name: string }>> {
+    const config = appConfig.jellyfin;
+    if (!config?.url || !config?.token) {
+      return [];
+    }
+
+    try {
+      const url = new URL('/Users', config.url);
+      const headers = new Headers();
+      headers.set('Authorization', `MediaBrowser Token="${config.token}"`);
+      headers.set('Accept', 'application/json');
+
+      const response = await fetch(url.toString(), {
+        method: 'GET',
+        headers,
+      });
+
+      if (!response.ok) {
+        console.warn(`Jellyfin API returned ${response.status} when fetching users`);
+        return [];
+      }
+
+      const users = (await response.json()) as Array<{ Id: string; Name: string }>;
+      if (Array.isArray(users)) {
+        return users.map((u) => ({ id: u.Id, name: u.Name }));
+      }
+      return [];
+    } catch (error) {
+      console.error('Error querying Jellyfin API for users:', error);
+      return [];
+    }
+  }
+
   public clearCache(): void {
     this.seriesCache.clear();
     this.libraryCache.clear();

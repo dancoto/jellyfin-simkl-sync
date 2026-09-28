@@ -5,6 +5,9 @@ token = "YOUR_JELLYFIN_API_KEY"
 [simkl]
 app_name = "YourAppName"
 client_id = "YOUR_SIMKL_CLIENT_ID"
+client_secret = "YOUR_SIMKL_CLIENT_SECRET"
+# Optional: Set explicit callback URL (default: http://<host>:3000/auth/callback)
+# redirect_uri = "http://your-server-ip:3000/auth/callback"
 
 [simkl.users]
 your_jellyfin_username = "YOUR_SIMKL_USER_TOKEN"

@@ -83,9 +83,15 @@ Otherwise, install with Bun:
 bun install
 ```
 
-### 2. Configuration
+### 2. Configuration & Simkl App Setup
 
-Create a `config.toml` in the root of the project:
+1. **Create Simkl Developer App**:
+   - Go to [simkl.com/settings/developer/new/](https://simkl.com/settings/developer/new/)
+   - Set **Redirect URL** to: `http://<your-server-ip-or-host>:3000/auth/callback` (or `http://localhost:3000/auth/callback` for local testing).
+   - Copy your generated **Client ID** and **Client Secret**.
+
+2. **Configure `config.toml`**:
+   Create a `config.toml` in the root of the project (or copy from `config.example.toml`):
 
 ```toml
 [jellyfin]
@@ -93,12 +99,14 @@ url = "http://YOUR_JELLYFIN_SERVER:8096"
 token = "YOUR_JELLYFIN_API_KEY"
 
 [simkl]
-client_id = "YOUR_SIMKL_CLIENT_ID"
 app_name = "jellyfin-simkl-sync"
+client_id = "YOUR_SIMKL_CLIENT_ID"
+client_secret = "YOUR_SIMKL_CLIENT_SECRET"
+# Optional explicit callback override (defaults to http://<host>:3000/auth/callback)
+# redirect_uri = "http://YOUR_SERVER_IP:3000/auth/callback"
 
 [simkl.users]
-jellyfin_username_1 = "SIMKL_USER_ACCESS_TOKEN_1"
-jellyfin_username_2 = "SIMKL_USER_ACCESS_TOKEN_2"
+# Tokens can be automatically populated via the Web Dashboard at http://localhost:3000/
 
 [ntfy]
 url = "https://ntfy.sh"
@@ -106,9 +114,17 @@ token = "YOUR_NTFY_AUTH_TOKEN"
 topic = "YOUR_NTFY_TOPIC"
 ```
 
-_Note: The `[jellyfin]` block is used to query series provider IDs (TVDB/TMDB) via Jellyfin's local API when they are not passed directly in the webhook payload._
+### 3. User Authentication Dashboard & Auto-Refresh
 
-### 3. Mapping Overrides (Optional)
+Open your browser to **`http://<your-server-ip>:3000/`** (or `/auth`):
+
+- **Auto-Populated User List**: Automatically queries Jellyfin for your existing users.
+- **One-Click OAuth**: Select a user from the dropdown and click **Authorize on Simkl** (requests `scope=media:write` for watch history sync).
+- **Automated Storage**: After authorizing on Simkl, the callback securely exchanges the code and saves `{ token, refresh_token, expires_at }` directly into `config.toml` and runtime memory.
+- **Automatic Background Token Refresh**: Simkl access tokens last 7 days. The application automatically refreshes tokens in the background every 24 hours (and just-in-time whenever a watch event triggers if expiring within 24 hours). Because Simkl refresh tokens stay valid for 180 days sliding, active accounts will remain authenticated indefinitely without manual intervention.
+- **Health Checks & Manual Controls**: Displays live token validity and expiration countdowns for each user, with on-demand **↻ Refresh** and **Re-authorize** buttons. Legacy string tokens (`username = "token"`) also remain fully supported.
+
+### 4. Mapping Overrides (Optional)
 
 You can place an `anidb-mapping-overrides.json` file in the root or configuration directory using the AniBridge format:
 
