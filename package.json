@@ -1,8 +1,8 @@
 {
-  "name": "shoko-anime-sync-bun",
+  "name": "jellyfin-simkl-sync",
   "version": "1.0.0",
   "private": true,
-  "description": "Lightweight media bridging utility syncing Jellyfin watch history to Simkl via Shoko Server using Bun",
+  "description": "Lightweight webhook server syncing Jellyfin watch history to Simkl with automated AniDB anime cross-referencing and non-anime media support using Bun",
   "license": "MIT",
   "author": "Daniel Coto",
   "type": "module",

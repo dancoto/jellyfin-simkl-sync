@@ -1,0 +1,17 @@
+services:
+  jellyfin-simkl-sync:
+    build: .
+    image: jellyfin-simkl-sync:latest
+    container_name: jellyfin-simkl-sync
+    restart: unless-stopped
+    # Optional: match your host user UID:GID (or "0:0" for root)
+    user: '1000:1000'
+    ports:
+      - '3224:3000'
+    volumes:
+      # Mount your configuration file (must be writable for token auto-refresh):
+      - ./config.toml:/config/config.toml:rw
+      # Optional: Mount the whole /config directory to persist downloaded mapping caches:
+      # - ./config:/config:rw
+    environment:
+      - TZ=America/New_York
