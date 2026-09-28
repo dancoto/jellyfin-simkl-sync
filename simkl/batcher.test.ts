@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, mock, test } from 'bun:test';
 import { appConfig } from '../shared/config';
-import { buildSyncPayload, enqueueScrobble } from './batcher';
+import { buildSyncPayload, enqueueScrobble, sendSyncPayload } from './batcher';
 
 describe('Simkl Scrobble Batcher & Debouncer', () => {
   let originalConfig: any;
@@ -125,5 +125,39 @@ describe('Simkl Scrobble Batcher & Debouncer', () => {
     const sentBody = JSON.parse(options.body);
     expect(sentBody.shows.length).toBe(1);
     expect(sentBody.shows[0].seasons[0].episodes.length).toBe(10);
+  });
+
+  test('sendSyncPayload should retry when Simkl returns 400 RATE_LIMIT and succeed', async () => {
+    let callCount = 0;
+    fetchMock = mock(() => {
+      callCount++;
+      if (callCount === 1) {
+        return Promise.resolve(
+          new Response(JSON.stringify({ error: 'RATE_LIMIT', message: 'Rate limit' }), {
+            status: 400,
+          }),
+        );
+      }
+      return Promise.resolve(
+        new Response(
+          JSON.stringify({
+            added: { movies: 0, shows: 1, episodes: 1, statuses: [] },
+            not_found: { movies: [], shows: [], episodes: [] },
+          }),
+        ),
+      );
+    });
+    global.fetch = fetchMock as any;
+
+    const result = await sendSyncPayload(
+      { shows: [{ ids: { anidb: '123' }, seasons: [{ number: 1, episodes: [{ number: 1 }] }] }] },
+      'test-token',
+      new Map(),
+      3,
+    );
+
+    expect(result.success).toBe(true);
+    expect(result.addedCount).toBe(2);
+    expect(callCount).toBe(2);
   });
 });

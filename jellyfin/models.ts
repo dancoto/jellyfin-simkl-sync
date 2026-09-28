@@ -10,6 +10,8 @@ export interface RawJellyfinPayload extends Record<string, any> {
   SeriesId?: string;
   SeasonNumber?: number;
   EpisodeNumber?: number;
+  EpisodeNumberEnd?: number;
+  IndexNumberEnd?: number;
   Year?: number;
   PlaybackPositionTicks?: number;
   RunTimeTicks?: number;
@@ -30,6 +32,7 @@ export interface NormalizedPlaybackEvent {
   seriesId?: string;
   seasonNumber?: number;
   episodeNumber?: number;
+  episodeNumberEnd?: number;
   year?: number;
   libraryName?: string;
   path?: string;

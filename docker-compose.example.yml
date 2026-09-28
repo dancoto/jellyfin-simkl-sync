@@ -11,7 +11,10 @@ services:
     volumes:
       # Mount your configuration file (must be writable for token auto-refresh):
       - ./config.toml:/config/config.toml:rw
-      # Optional: Mount the whole /config directory to persist downloaded mapping caches:
-      # - ./config:/config:rw
+      # Persist downloaded anime mapping caches (~11MB) across container restarts/updates:
+      - simkl-cache:/config/cache:rw
     environment:
       - TZ=America/New_York
+
+volumes:
+  simkl-cache:

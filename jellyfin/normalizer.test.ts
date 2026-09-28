@@ -106,4 +106,21 @@ describe('Jellyfin Webhook Normalizer', () => {
     const event = normalizeJellyfinWebhook(raw);
     expect(event.isCompleted).toBe(true);
   });
+
+  test('should parse episodeNumberEnd from IndexNumberEnd or EpisodeNumberEnd', () => {
+    const raw = {
+      NotificationType: 'PlaybackStop',
+      NotificationUsername: 'daniel',
+      ItemType: 'Episode',
+      Name: 'Multi Part Episode',
+      SeasonNumber: 1,
+      IndexNumber: 1,
+      IndexNumberEnd: 2,
+      Played: true,
+    };
+
+    const event = normalizeJellyfinWebhook(raw);
+    expect(event.episodeNumber).toBe(1);
+    expect(event.episodeNumberEnd).toBe(2);
+  });
 });

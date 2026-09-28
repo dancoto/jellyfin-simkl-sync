@@ -50,11 +50,39 @@ export const handleWebhook = async (
 
   logger.info(`Processing playback completion for user "${event.username}": ${event.name}`);
 
-  // 3. Determine library name and route anime vs non-anime
+  // 3. Determine library name and ensure provider IDs are loaded before anime fallback check
   let libraryName = event.libraryName;
   if (!libraryName || libraryName.toLowerCase() === 'root') {
     libraryName =
       (await defaultJellyfinClient.getLibraryName(event.seriesId ?? event.itemId)) ?? undefined;
+  }
+
+  // Pre-fetch provider IDs from Jellyfin API if missing from webhook body
+  if (event.itemType === 'Episode' && event.seriesId) {
+    if (
+      !event.seriesProviderIds.tvdb &&
+      !event.seriesProviderIds.tmdb &&
+      !event.seriesProviderIds.anidb
+    ) {
+      logger.debug(`Querying series provider IDs from Jellyfin API for ${event.seriesId}...`);
+      const fetched = await defaultJellyfinClient.getSeriesProviderIds(event.seriesId);
+      if (fetched) {
+        event.seriesProviderIds = { ...event.seriesProviderIds, ...fetched };
+      }
+    }
+  } else if (event.itemType === 'Movie' && event.itemId) {
+    if (
+      !event.providerIds.tmdb &&
+      !event.providerIds.imdb &&
+      !event.providerIds.tvdb &&
+      !event.providerIds.anidb
+    ) {
+      logger.debug(`Querying movie provider IDs from Jellyfin API for ${event.itemId}...`);
+      const fetched = await defaultJellyfinClient.getSeriesProviderIds(event.itemId);
+      if (fetched) {
+        event.providerIds = { ...event.providerIds, ...fetched };
+      }
+    }
   }
 
   const isAnime = (libraryName && isAnimeLibrary(libraryName)) || checkIfAnimeFallback(event);
@@ -70,80 +98,62 @@ export const handleWebhook = async (
         return;
       }
 
-      let seriesProviderIds = { ...event.seriesProviderIds };
-      if (
-        !seriesProviderIds.tvdb &&
-        !seriesProviderIds.tmdb &&
-        !seriesProviderIds.anidb &&
-        event.seriesId
-      ) {
-        logger.debug(`Querying series provider IDs from Jellyfin API for ${event.seriesId}...`);
-        const fetched = await defaultJellyfinClient.getSeriesProviderIds(event.seriesId);
-        if (fetched) {
-          seriesProviderIds = { ...seriesProviderIds, ...fetched };
-        }
-      }
-
-      event.seriesProviderIds = seriesProviderIds;
+      const seriesProviderIds = event.seriesProviderIds;
       logger.debug(
         `Series Provider IDs for "${event.seriesName ?? event.name}":`,
         seriesProviderIds,
       );
 
-      const resolved = defaultAnimeResolver.resolveEpisode(
-        {
-          tvdbId: seriesProviderIds.tvdb,
-          tmdbId: seriesProviderIds.tmdb,
-          anidbId: seriesProviderIds.anidb ?? event.providerIds.anidb,
-        },
-        event.seasonNumber,
-        event.episodeNumber,
-      );
+      const startEp = event.episodeNumber;
+      const endEp =
+        event.episodeNumberEnd && event.episodeNumberEnd >= startEp
+          ? event.episodeNumberEnd
+          : startEp;
 
-      if (!resolved) {
-        // Edge case: If NOT a special (season !== 0), fallback to standard pipeline
-        if (event.seasonNumber !== 0) {
-          console.log(
-            `No AniDB mapping found for anime "${event.seriesName ?? event.name}" (S${event.seasonNumber}E${event.episodeNumber}). Falling back to standard non-anime pipeline.`,
-          );
-          event.seriesProviderIds = seriesProviderIds;
-          await enqueueStandardEpisode(event, userToken, options);
+      for (let ep = startEp; ep <= endEp; ep++) {
+        const resolved = defaultAnimeResolver.resolveEpisode(
+          {
+            tvdbId: seriesProviderIds.tvdb,
+            tmdbId: seriesProviderIds.tmdb,
+            anidbId: seriesProviderIds.anidb ?? event.providerIds.anidb,
+          },
+          event.seasonNumber,
+          ep,
+        );
+
+        if (!resolved) {
+          // Edge case: If NOT a special (season !== 0), fallback to standard pipeline
+          if (event.seasonNumber !== 0) {
+            console.log(
+              `No AniDB mapping found for anime "${event.seriesName ?? event.name}" (S${event.seasonNumber}E${ep}). Falling back to standard non-anime pipeline.`,
+            );
+            await enqueueStandardEpisode(event, userToken, ep, options);
+          } else {
+            console.log(
+              `No anime mapping match found for special "${event.seriesName ?? event.name}" (S0E${ep}). Skipping anime scrobble.`,
+            );
+          }
         } else {
           console.log(
-            `No anime mapping match found for special "${event.seriesName ?? event.name}" (S0E${event.episodeNumber}). Skipping anime scrobble.`,
+            `Mapped anime "${event.seriesName ?? event.name}" S${event.seasonNumber}E${ep} -> AniDB ${resolved.animeId} Ep ${resolved.episodeNumber} (${resolved.source})`,
           );
-          return;
-        }
-      } else {
-        console.log(
-          `Mapped anime "${event.seriesName ?? event.name}" S${event.seasonNumber}E${event.episodeNumber} -> AniDB ${resolved.animeId} Ep ${resolved.episodeNumber} (${resolved.source})`,
-        );
 
-        await enqueueScrobble(
-          event.username,
-          userToken,
-          {
-            kind: 'anime_episode',
-            animeId: resolved.animeId,
-            episodeNumber: resolved.episodeNumber,
-            isSpecial: resolved.isSpecial,
-            seriesName: event.seriesName,
-            episodeName: event.name,
-          },
-          options,
-        );
+          await enqueueScrobble(
+            event.username,
+            userToken,
+            {
+              kind: 'anime_episode',
+              animeId: resolved.animeId,
+              episodeNumber: resolved.episodeNumber,
+              isSpecial: resolved.isSpecial,
+              seriesName: event.seriesName,
+              episodeName: ep === startEp ? event.name : `Episode ${ep}`,
+            },
+            options,
+          );
+        }
       }
     } else if (event.itemType === 'Movie') {
-      let providerIds = { ...event.providerIds };
-      if (!providerIds.tmdb && !providerIds.imdb && !providerIds.tvdb && event.itemId) {
-        logger.debug(`Querying movie provider IDs from Jellyfin API for ${event.itemId}...`);
-        const fetched = await defaultJellyfinClient.getSeriesProviderIds(event.itemId);
-        if (fetched) {
-          providerIds = { ...providerIds, ...fetched };
-          event.providerIds = providerIds;
-        }
-      }
-
       const resolved = defaultAnimeResolver.resolveMovie({
         tmdbId: event.providerIds.tmdb,
         imdbId: event.providerIds.imdb,
@@ -176,7 +186,15 @@ export const handleWebhook = async (
   } else {
     // === NON-ANIME / STANDARD MEDIA PIPELINE ===
     if (event.itemType === 'Episode') {
-      await enqueueStandardEpisode(event, userToken, options);
+      const startEp = event.episodeNumber ?? 1;
+      const endEp =
+        event.episodeNumberEnd && event.episodeNumberEnd >= startEp
+          ? event.episodeNumberEnd
+          : startEp;
+
+      for (let ep = startEp; ep <= endEp; ep++) {
+        await enqueueStandardEpisode(event, userToken, ep, options);
+      }
     } else if (event.itemType === 'Movie') {
       await enqueueStandardMovie(event, userToken, options);
     }
@@ -220,6 +238,7 @@ const enqueueStandardMovie = async (
 const enqueueStandardEpisode = async (
   event: ReturnType<typeof normalizeJellyfinWebhook>,
   userToken: string,
+  episodeNumber: number,
   options?: { debounceMs?: number },
 ): Promise<void> => {
   let seriesProviderIds = { ...event.seriesProviderIds };
@@ -240,7 +259,7 @@ const enqueueStandardEpisode = async (
 
   event.seriesProviderIds = seriesProviderIds;
   logger.info(
-    `Scrobbling standard series "${event.seriesName ?? event.name}" (S${event.seasonNumber}E${event.episodeNumber}) to Simkl.`,
+    `Scrobbling standard series "${event.seriesName ?? event.name}" (S${event.seasonNumber ?? 1}E${episodeNumber}) to Simkl.`,
   );
   logger.debug('Standard series IDs:', event.seriesProviderIds);
 
@@ -251,13 +270,13 @@ const enqueueStandardEpisode = async (
       kind: 'standard_episode',
       seriesName: event.seriesName,
       seasonNumber: event.seasonNumber ?? 1,
-      episodeNumber: event.episodeNumber ?? 1,
+      episodeNumber,
       ids: {
         tvdb: event.seriesProviderIds.tvdb,
         tmdb: event.seriesProviderIds.tmdb,
         imdb: event.seriesProviderIds.imdb,
       },
-      episodeName: event.name,
+      episodeName: episodeNumber === event.episodeNumber ? event.name : `Episode ${episodeNumber}`,
     },
     options,
   );
