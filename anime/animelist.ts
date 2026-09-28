@@ -1,4 +1,4 @@
-import type { AniDbSeasonSegment } from './models';
+import type { AniDbSeasonSegment, EpisodeKind } from './models';
 import { orderSegments } from './segments';
 
 export interface AnimeListEntry {
@@ -130,10 +130,11 @@ export class AnimeListIndex {
   public placeSpecial(
     siblings: AnimeListEntry[],
     episodeNumber: number,
-  ): { animeId: string; episodeNumber: number; kind: 'special' } | null {
+  ): { animeId: string; episodeNumber: number; kind: EpisodeKind } | null {
     for (const entry of siblings) {
       for (const map of entry.mappings) {
-        if (map.tvdbSeason === 0 && map.anidbSeason === 0) {
+        if (map.tvdbSeason === 0) {
+          const kind: EpisodeKind = map.anidbSeason === 0 ? 'special' : 'regular';
           // If range is specified, e.g. ;1-4;
           if (map.range) {
             const clean = map.range.replace(/^;|;$/g, '');
@@ -147,7 +148,7 @@ export class AnimeListIndex {
                 return {
                   animeId: entry.animeId,
                   episodeNumber: epInEntry,
-                  kind: 'special',
+                  kind,
                 };
               }
             }
@@ -155,12 +156,33 @@ export class AnimeListIndex {
             return {
               animeId: entry.animeId,
               episodeNumber,
-              kind: 'special',
+              kind,
             };
           }
         }
       }
     }
+
+    // Check defaultTvdbSeason === 0 entries
+    const zeroSeasonEntries = siblings
+      .filter((e) => e.defaultTvdbSeason === 0)
+      .sort((a, b) => a.episodeOffset - b.episodeOffset);
+
+    for (let i = 0; i < zeroSeasonEntries.length; i++) {
+      const entry = zeroSeasonEntries[i]!;
+      const nextEntry = zeroSeasonEntries[i + 1];
+      const start = entry.episodeOffset + 1;
+      const end = nextEntry ? nextEntry.episodeOffset : Number.MAX_SAFE_INTEGER;
+
+      if (episodeNumber >= start && episodeNumber <= end) {
+        return {
+          animeId: entry.animeId,
+          episodeNumber: episodeNumber - entry.episodeOffset,
+          kind: 'regular',
+        };
+      }
+    }
+
     return null;
   }
 

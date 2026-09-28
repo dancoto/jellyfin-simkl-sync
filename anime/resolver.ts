@@ -196,7 +196,7 @@ export class AnimeResolver {
           return {
             animeId: match.animeId,
             episodeNumber: match.episodeNumber,
-            isSpecial: true,
+            isSpecial: match.kind === 'special',
             kind: match.kind,
             source: 'overrides',
           };
@@ -213,7 +213,7 @@ export class AnimeResolver {
           return {
             animeId: match.animeId,
             episodeNumber: match.episodeNumber,
-            isSpecial: true,
+            isSpecial: match.kind === 'special',
             kind: match.kind,
             source: 'anibridge',
           };
@@ -230,8 +230,8 @@ export class AnimeResolver {
           return {
             animeId: match.animeId,
             episodeNumber: match.episodeNumber,
-            isSpecial: true,
-            kind: 'special',
+            isSpecial: match.kind === 'special',
+            kind: match.kind,
             source: 'animelist',
           };
         }
