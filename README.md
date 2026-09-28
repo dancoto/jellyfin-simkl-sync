@@ -1,59 +1,67 @@
-# Shoko Anime Sync (Bun version)
+# jellyfin-simkl-sync
 
-A lightweight, high-performance media bridging utility rewritten in TypeScript/Bun. It listens to Jellyfin media playback webhook events, queries your local Shoko Server to resolve AniDB metadata, and synchronizes watch history directly to your Simkl account.
+A lightweight, high-performance media sync webhook server built in TypeScript with Bun. It listens directly to Jellyfin playback webhook events, automatically routes between Anime (using AniBridge & AniDB cross-referencing) and standard TV Shows/Movies (using TVDB, TMDB, and IMDb IDs), and synchronizes watch history directly to your Simkl account.
 
-It also supports multi-user setups, sends scrobble failure notifications to a `ntfy` server, and is designed with clean, decoupled service architecture.
+It supports multi-user setups, sends scrobble failure notifications to a `ntfy` server, and is designed with a clean, decoupled service architecture.
 
 ---
 
 ## 🏛️ Architecture & Core Components
 
-This application has been modularized with a strict separation of concerns:
-
 ```mermaid
-graph TD
-    index.ts[index.ts - HTTP Server] -->|Asynchronously Dispatches| main.ts[main.ts - Orchestrator]
-    main.ts -->|1. Fetch AniDB ID & Type| shoko[shoko/ - Shoko Client]
-    main.ts -->|2. Scrobble to Simkl| simkl[simkl/ - Simkl Scrobbler]
-    main.ts -->|3. Notify on Error| ntfy[ntfy/ - Notification Service]
-    shared[shared/config.ts] -.->|Reads Config| main.ts
+flowchart TD
+    JF[Jellyfin Generic Webhook] --> Normalizer[jellyfin/ - Webhook Normalizer]
+    Normalizer -->|Fetch Series IDs / Library Ancestor if needed| JFClient[jellyfin/ - Jellyfin API Client]
+    Normalizer --> main[main.ts - Orchestrator]
+    JFClient --> main
+
+    main -->|Library contains 'Anime'| resolver[anime/ - Anime Resolver Engine]
+    main -->|Standard TV / Movies| simkl[simkl/ - Simkl Scrobbler]
+
+    subgraph Anime_Engine["anime/ - 3-Tier Mapping Pipeline"]
+        resolver --> Ovr[1. anidb-mapping-overrides.json]
+        Ovr -->|Miss| Bridge[2. AniBridge mappings.min.json]
+        Bridge -->|Miss| AList[3. Anime-Lists XML Fallback]
+    end
+
+    resolver --> simkl
+    simkl -->|On Failure / Not Found| ntfy[ntfy/ - Notification Service]
+    shared[shared/config.ts] -.->|Reads Config| main
 ```
 
-- **[index.ts](./index.ts)**: The entry point using `Bun.serve`. It listens to POST requests on `/webhook` and immediately fires `handleWebhook` in the background (preventing HTTP timeouts from Jellyfin) while returning an early success response.
-- **[main.ts](./main.ts)**: The system orchestrator (or mediator). It handles user credential verification, directs Shoko lookup, delegates watch history logging to Simkl, and intercepts failures to send push notifications.
-- **[shoko/](./shoko)**: Handles Shoko Server API queries. Implements the episode/movie splitting logic (decided by whether TMDB returns a Movie mapping array of length 1) and handles special series episodes.
-- **[simkl/](./simkl)**: Contains Simkl API interactions. Evaluates watch percentages (treating $\ge 80\%$ as completed/watched) and coordinates the history synchronization request.
+- **[index.ts](./index.ts)**: The HTTP entry point using `Bun.serve`. Initializes the anime mapping indices in the background and dispatches `/webhook` requests asynchronously to prevent Jellyfin timeouts.
+- **[main.ts](./main.ts)**: The system orchestrator. Handles user credential verification, inspects library names, directs anime vs non-anime routing, delegates watch history logging to Simkl, and intercepts failures to send push notifications.
+- **[anime/](./anime)**: The anime cross-referencing and mapping engine:
+  - **Overrides** (`anidb-mapping-overrides.json`): User-configured overrides evaluated with top priority.
+  - **AniBridge** (`mappings.min.json`): Fast, indexed bi-directional mappings translating TVDB/TMDB seasons into AniDB entries with support for continuous seasons, specials, multi-part ratios, and movies.
+  - **Anime-Lists** (`anime-list-full.xml`): Community XML fallback for unplaced titles.
+- **[jellyfin/](./jellyfin)**: Webhook normalizer and lightweight Jellyfin API client with in-memory caching to resolve series IDs and parent collection/library names if missing from the webhook payload.
+- **[simkl/](./simkl)**: Simkl API scrobbler. Syncs completed watch events (>= 80% progress or marked played) with resolved AniDB IDs for anime, or TVDB/TMDB/IMDb IDs for non-anime media.
 - **[ntfy/](./ntfy)**: Generates and posts failure notifications to `ntfy` server topics.
 - **[shared/](./shared)**: Exposes typed configurations loaded dynamically from `config.toml` at startup.
 
 ---
 
-## ✨ What it does
+## ✨ Features
 
-- **Jellyfin Webhook Listener**: Listens directly to Jellyfin playback events so you don't have to trigger anything manually.
-- **Smart Anime Metadata Matching**: Talks to your local Shoko Server behind the scenes to resolve AniDB IDs and figure out if you're watching a movie, a regular episode, or a special/ova/ona (which gets mapped to Season 0 automatically for Simkl).
-- **Strict Episode Scrobbling**: Respects your watching progress—it will only scrobble series episodes to Simkl once you've actually finished watching them (hitting the 80% mark).
-- **Multi-User Friendly**: Supports household setups by mapping different Jellyfin usernames directly to their respective Simkl tokens.
-- **Failure Alerts via ntfy**: If a scrobble fails (like when Simkl is missing an AniDB mapping), it shoots an alert with a clickable AniDB link straight to your configured `ntfy` topic.
+- **Direct Jellyfin Webhook Ingestion**: Listens directly to Jellyfin's Generic Webhook destination.
+- **Dual Pipeline (Anime & Non-Anime)**: Automatically identifies Anime libraries (libraries containing `"Anime"` case-insensitively, e.g. `"Anime"`, `"Anime Movies"`) and routes them through the AniDB mapping engine, while routing standard TV Shows and Movies directly via TVDB, TMDB, and IMDb IDs.
+- **AniBridge Cross-Referencing**: Translates continuous TVDB season numberings into distinct AniDB anime entries and 1..N episode numbers automatically.
+- **Custom Overrides**: Drop an `anidb-mapping-overrides.json` file in the root or config folder to fix or customize any anime mapping using the standard AniBridge schema.
+- **Strict Episode & Movie Scrobbling**: Only scrobbles media once playback finishes (reaching $\ge 80\%$ or marked played).
+- **Multi-User Friendly**: Supports multi-user households by mapping different Jellyfin usernames directly to their respective Simkl tokens.
+- **Failure Alerts via ntfy**: Sends clickable link alerts to your configured `ntfy` topic if a title is missing or unmapped in Simkl.
 
 ---
 
 ## 🛠️ Prerequisites
 
-The following components and versions have been confirmed working:
-
-- **[Jellyfin](https://jellyfin.org/) 10.11.X**
-  - **[Shokofin](https://github.com/ShokoAnime/Shokofin) plugin 6.0.5.X** (for linking Jellyfin items to Shoko metadata)
-  - **Webhook plugin 21.0.0.0** (for dispatching playback events)
-- **[Shoko Server](https://shokoanime.com/downloads/shoko-server) 5.3.3**
-  - Requires a Shoko API key (can be generated in the Shoko Admin Web UI)
+- **[Jellyfin](https://jellyfin.org/) 10.9.X+** with **Webhook plugin** (Generic destination configured to POST to `http://<bridge-host>:3000/webhook`)
 - **[Simkl](https://simkl.com/) account**
-  - **Client ID**: Register an application in the [Simkl Settings / Developer Console](https://api.simkl.org/api-reference/introduction) to obtain a Client ID.
-  - **User Access Tokens**: Each user mapped in the application requires a Simkl Bearer Token (refer to the [Simkl OAuth Reference](https://api.simkl.org/api-reference/oauth)).
-- **[ntfy](https://ntfy.sh/) server** \*
+  - **Client ID**: Register an application in the [Simkl Developer Console](https://api.simkl.org/api-reference/introduction).
+  - **User Access Tokens**: Each user mapped in the application requires a Simkl Bearer Token.
+- **[ntfy](https://ntfy.sh/) server** _(optional, skipped if omitted from config)_
 - **[Bun Runtime](https://bun.sh/) 1.X** installed locally.
-
-_\* Optional: Failure notifications will be skipped if the `[ntfy]` block is not configured._
 
 ---
 
@@ -61,17 +69,14 @@ _\* Optional: Failure notifications will be skipped if the `[ntfy]` block is not
 
 ### 1. Installation
 
-If you use [mise](https://mise.jdx.dev/) (recommended), the local Bun environment will be set up automatically:
+If you use [mise](https://mise.jdx.dev/) (recommended):
 
 ```bash
-# Trust the project configuration (required by mise for security)
 mise trust
-
-# Installs the configured Bun version and adds node_modules/.bin to your PATH
 mise install
 ```
 
-Otherwise, ensure you have [Bun](https://bun.sh/) installed globally, then run:
+Otherwise, install with Bun:
 
 ```bash
 bun install
@@ -82,13 +87,13 @@ bun install
 Create a `config.toml` in the root of the project:
 
 ```toml
-[shoko]
-url = "http://YOUR_SHOKO_SERVER:8111"
-token = "YOUR_SHOKO_API_KEY"
+[jellyfin]
+url = "http://YOUR_JELLYFIN_SERVER:8096"
+token = "YOUR_JELLYFIN_API_KEY"
 
 [simkl]
 client_id = "YOUR_SIMKL_CLIENT_ID"
-app_name = "shoko-anime-sync-bun"
+app_name = "jellyfin-simkl-sync"
 
 [simkl.users]
 jellyfin_username_1 = "SIMKL_USER_ACCESS_TOKEN_1"
@@ -100,95 +105,63 @@ token = "YOUR_NTFY_AUTH_TOKEN"
 topic = "YOUR_NTFY_TOPIC"
 ```
 
-### 3. Running Locally
+_Note: The `[jellyfin]` block is used to query series provider IDs (TVDB/TMDB) via Jellyfin's local API when they are not passed directly in the webhook payload._
 
-Start the server in development mode (with hot-reloading):
+### 3. Mapping Overrides (Optional)
+
+You can place an `anidb-mapping-overrides.json` file in the root or configuration directory using the AniBridge format:
+
+```json
+{
+  "anidb:665:O": { "tvdb_show:70873:s3": { "1-13": "1-13" } },
+  "anidb:7777:R": { "tvdb_show:441190:s4": { "1-12": "1-12" } }
+}
+```
+
+### 4. Running Locally
+
+Start development server with live reload:
 
 ```bash
 bun run dev
 ```
 
-Or run it in production mode:
+Or run in production mode:
 
 ```bash
 bun start
 ```
 
-The server will listen for webhook requests on port `3000`.
-
 ---
 
 ## 🧪 Testing, Linting & Formatting
 
-We use standard package scripts to test, lint, and format the application:
-
-### Run Tests
-
 ```bash
+# Run unit tests
 bun run test
-```
 
-### Lint Code
-
-Lint code with `oxlint`
-
-```bash
+# Lint code
 bun run lint
-```
 
-### Format Code
-
-Format all files in place using `oxfmt`:
-
-```bash
+# Format code
 bun run format
-```
-
-You can also run a check to verify formatting:
-
-```bash
-bun run format:check
 ```
 
 ---
 
 ## 🐳 Docker Setup
 
-A Docker image can be built and deployed using the provided multi-stage `Dockerfile`.
-
-### Build Image
+Build and run with Docker:
 
 ```bash
-docker build -t shoko-anime-sync-bun .
-```
+docker build -t jellyfin-anime-sync .
 
-### Run Container
-
-Make sure to mount your configuration directory containing `config.toml` to `/config` in the container:
-
-```bash
 docker run -d \
-  --name shoko-anime-sync-bun \
+  --name jellyfin-anime-sync \
   -p 3000:3000 \
-  -v /path/to/your/config-dir:/config \
-  shoko-anime-sync-bun
+  -v /path/to/config-dir:/config \
+  jellyfin-anime-sync
 ```
-
-### Unraid
-
-When setting up your Unraid container template, configure the volume mapping and port mapping as follows:
-
-1. **Volume Mapping**:
-   - **Container Path**: `/config`
-   - **Host Path**: `/mnt/user/appdata/shoko-anime-sync-bun`
-   - **Access Mode**: `Read/Write`
-
-2. **Port Mapping**:
-   - **Container Port**: `3000`
-   - **Host Port**: `8282`
-   - **Protocol**: `TCP`
-
-Place your `config.toml` inside `/mnt/user/appdata/shoko-anime-sync-bun/` and start the container.
 
 ---
 

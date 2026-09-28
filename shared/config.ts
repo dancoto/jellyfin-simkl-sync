@@ -1,6 +1,7 @@
 import { resolve } from 'path';
-type Config = {
-  shoko: { url: string; token: string };
+
+export type Config = {
+  jellyfin?: { url: string; token: string };
   simkl: {
     app_name: string;
     client_id: string;
@@ -21,12 +22,14 @@ function validateConfig(config: any): asserts config is Config {
     throw new Error('Config is not a valid object.');
   }
 
-  if (!config.shoko?.url || !config.shoko?.token) {
-    throw new Error('Missing required "shoko.url" or "shoko.token" in config.');
+  if (config.jellyfin) {
+    if (!config.jellyfin.url || !config.jellyfin.token) {
+      throw new Error('Optional "jellyfin" block is present but missing "url" or "token".');
+    }
   }
 
   if (!config.simkl?.app_name || !config.simkl?.client_id || !config.simkl?.users) {
-    throw new Error('Missing required "simkl" fields (app_name, client_id, or users array).');
+    throw new Error('Missing required "simkl" fields (app_name, client_id, or users map).');
   }
 
   if (config.ntfy) {

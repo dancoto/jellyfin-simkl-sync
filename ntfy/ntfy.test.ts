@@ -8,7 +8,6 @@ describe('Ntfy Notification Service', () => {
 
   beforeEach(() => {
     originalConfig = JSON.parse(JSON.stringify(appConfig));
-    appConfig.shoko = { url: 'http://shoko-mock', token: 'mock-shoko-token' };
     appConfig.simkl = {
       app_name: 'mock-simkl-app',
       client_id: 'mock-simkl-client-id',

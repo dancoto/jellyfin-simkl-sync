@@ -1,22 +1,42 @@
-type Show = {
+export const WATCH_STATUS = {
+  WATCHING: 'watching',
+  COMPLETED: 'completed',
+  HOLD: 'hold',
+} as const;
+
+export type WatchStatus = (typeof WATCH_STATUS)[keyof typeof WATCH_STATUS];
+
+export type Show = {
+  title?: string;
   ids: {
-    anidb: string;
+    anidb?: string;
+    tvdb?: string;
+    tmdb?: string;
+    imdb?: string;
+    [key: string]: any;
   };
   seasons: Season[];
 };
-type Season = {
+
+export type Season = {
   number: number;
   episodes: Episode[];
 };
-type Episode = {
+
+export type Episode = {
   number: number;
 };
 
-type Movie = {
+export type Movie = {
+  title?: string;
   ids: {
-    anidb: string;
+    anidb?: string;
+    tmdb?: string;
+    imdb?: string;
+    tvdb?: string;
+    [key: string]: any;
   };
-  status: WatchStatus;
+  status?: WatchStatus;
 };
 
 export type TVPayload = {
@@ -35,7 +55,8 @@ export type SyncResponse = {
     statuses: {
       request: {
         ids: {
-          anidb: string;
+          anidb?: string;
+          [key: string]: any;
         };
         type: string;
       };
@@ -48,10 +69,41 @@ export type SyncResponse = {
   };
 };
 
-export const WATCH_STATUS = {
-  WATCHING: 'watching',
-  COMPLETED: 'completed',
-  HOLD: 'hold',
-} as const;
+export interface ScrobbleIds {
+  simkl?: number;
+  anidb?: number | string;
+  tvdb?: number | string;
+  tmdb?: number | string;
+  imdb?: string;
+  slug?: string;
+}
 
-export type WatchStatus = (typeof WATCH_STATUS)[keyof typeof WATCH_STATUS];
+export interface ScrobbleShow {
+  title?: string;
+  year?: number;
+  ids?: ScrobbleIds;
+}
+
+export interface ScrobbleEpisode {
+  season?: number;
+  number?: number;
+  ids?: ScrobbleIds;
+}
+
+export interface ScrobbleMovie {
+  title?: string;
+  year?: number;
+  ids?: ScrobbleIds;
+}
+
+export interface ScrobbleRequest {
+  progress?: number;
+  show?: ScrobbleShow;
+  episode?: ScrobbleEpisode;
+  movie?: ScrobbleMovie;
+}
+
+export type ScrobbleResult =
+  | { success: true; id: string; watchStatus: WatchStatus; skipped: false }
+  | { success: true; skipped: true }
+  | { success: false; reason: 'not_found' | 'api_error'; anidbId: string };

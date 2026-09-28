@@ -1,0 +1,15 @@
+[jellyfin]
+url = "http://jellyfin.local:8096"
+token = "YOUR_JELLYFIN_API_KEY"
+
+[simkl]
+app_name = "YourAppName"
+client_id = "YOUR_SIMKL_CLIENT_ID"
+
+[simkl.users]
+your_jellyfin_username = "YOUR_SIMKL_USER_TOKEN"
+
+[ntfy]
+url = "https://ntfy.sh"
+token = "YOUR_NTFY_TOKEN"
+topic = "media-sync-alerts"
