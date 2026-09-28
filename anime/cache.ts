@@ -12,6 +12,7 @@ const DEFAULT_MAX_AGE_DAYS = 7;
 export interface CacheOptions {
   cacheDir?: string;
   maxAgeDays?: number;
+  forceRefresh?: boolean;
 }
 
 export const getCacheDir = (customDir?: string): string => {
@@ -43,7 +44,7 @@ export const getOrDownloadFile = async (
   const maxAgeMs = (options.maxAgeDays ?? DEFAULT_MAX_AGE_DAYS) * 24 * 60 * 60 * 1000;
 
   const fileExists = existsSync(filePath);
-  if (fileExists) {
+  if (fileExists && !options.forceRefresh) {
     try {
       const stats = statSync(filePath);
       const ageMs = Date.now() - stats.mtimeMs;
@@ -60,7 +61,7 @@ export const getOrDownloadFile = async (
   try {
     const response = await fetch(url, {
       headers: {
-        'User-Agent': 'shoko-anime-sync/2.0',
+        'User-Agent': 'jellyfin-simkl-sync/1.0',
       },
     });
 

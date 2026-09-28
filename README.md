@@ -48,6 +48,7 @@ flowchart TD
 - **Dual Pipeline (Anime & Non-Anime)**: Automatically identifies Anime libraries (libraries containing `"Anime"` case-insensitively, e.g. `"Anime"`, `"Anime Movies"`) and routes them through the AniDB mapping engine, while routing standard TV Shows and Movies directly via TVDB, TMDB, and IMDb IDs.
 - **AniBridge Cross-Referencing**: Translates continuous TVDB season numberings into distinct AniDB anime entries and 1..N episode numbers automatically.
 - **Custom Overrides**: Drop an `anidb-mapping-overrides.json` file in the root or config folder to fix or customize any anime mapping using the standard AniBridge schema.
+- **Automated Background Refresh**: Periodically checks and hot-swaps expired mapping caches in the background every 24 hours without server restarts, and supports manual on-demand reloads via `POST /mappings/refresh`.
 - **Strict Episode & Movie Scrobbling**: Only scrobbles media once playback finishes (reaching $\ge 80\%$ or marked played).
 - **Multi-User Friendly**: Supports multi-user households by mapping different Jellyfin usernames directly to their respective Simkl tokens.
 - **Failure Alerts via ntfy**: Sends clickable link alerts to your configured `ntfy` topic if a title is missing or unmapped in Simkl.
