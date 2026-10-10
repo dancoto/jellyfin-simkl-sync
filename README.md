@@ -1,8 +1,8 @@
-# jellyfin-simkl-sync
+# jellyfin-tracker-sync
 
-A lightweight, high-performance media sync webhook server built in TypeScript with Bun. It listens directly to Jellyfin playback webhook events, automatically routes between Anime (using AniBridge & AniDB cross-referencing) and standard TV Shows/Movies (using TVDB, TMDB, and IMDb IDs), and synchronizes watch history directly to your Simkl account.
+A lightweight, high-performance media sync webhook server built in TypeScript with Bun. It listens directly to Jellyfin playback webhook events, automatically routes between Anime (using AniBridge & AniDB cross-referencing) and standard TV Shows/Movies (using TVDB, TMDB, and IMDb IDs), and synchronizes watch history to your Simkl and AniList accounts.
 
-It supports multi-user setups, sends scrobble failure notifications to a `ntfy` server, and is designed with a clean, decoupled service architecture.
+It supports multi-user setups, sends failure notifications to a `ntfy` server, and is designed with a clean, decoupled service architecture.
 
 ---
 
@@ -25,18 +25,21 @@ flowchart TD
     end
 
     resolver --> simkl
+    resolver --> anilist[anilist/ - AniList Scrobbler]
     simkl -->|On Failure / Not Found| ntfy[ntfy/ - Notification Service]
+    anilist -->|On Failure| ntfy
     shared[shared/config.ts] -.->|Reads Config| main
 ```
 
 - **[index.ts](./index.ts)**: The HTTP entry point using `Bun.serve`. Initializes the anime mapping indices in the background and dispatches `/webhook` requests asynchronously to prevent Jellyfin timeouts.
-- **[main.ts](./main.ts)**: The system orchestrator. Handles user credential verification, inspects library names, directs anime vs non-anime routing, delegates watch history logging to Simkl, and intercepts failures to send push notifications.
+- **[main.ts](./main.ts)**: The system orchestrator. Handles user credential verification, inspects library names, directs anime vs non-anime routing, coordinates watch history logging to Simkl and AniList, and intercepts failures to send push notifications.
 - **[anime/](./anime)**: The anime cross-referencing and mapping engine:
   - **Overrides** (`anidb-mapping-overrides.json`): User-configured overrides evaluated with top priority.
-  - **AniBridge** (`mappings.min.json`): Fast, indexed bi-directional mappings translating TVDB/TMDB seasons into AniDB entries with support for continuous seasons, specials, multi-part ratios, and movies.
+  - **AniBridge** (`mappings.min.json`): Fast, indexed bi-directional mappings translating TVDB/TMDB seasons into AniDB and AniList entries with support for continuous seasons, specials, multi-part ratios, and movies.
   - **Anime-Lists** (`anime-list-full.xml`): Community XML fallback for unplaced titles.
 - **[jellyfin/](./jellyfin)**: Webhook normalizer and lightweight Jellyfin API client with in-memory caching to resolve series IDs and parent collection/library names if missing from the webhook payload.
 - **[simkl/](./simkl)**: Simkl API scrobbler. Syncs completed watch events (>= 80% progress or marked played) with resolved AniDB IDs for anime, or TVDB/TMDB/IMDb IDs for non-anime media.
+- **[anilist/](./anilist)**: AniList GraphQL scrobbler. Updates watch progress and list completion status on AniList with anti-regression protection, rate-limit backoff, and debouncing.
 - **[ntfy/](./ntfy)**: Generates and posts failure notifications to `ntfy` server topics.
 - **[shared/](./shared)**: Exposes typed configurations loaded dynamically from `config.toml` at startup.
 
@@ -99,13 +102,22 @@ url = "http://YOUR_JELLYFIN_SERVER:8096"
 token = "YOUR_JELLYFIN_API_KEY"
 
 [simkl]
-app_name = "jellyfin-simkl-sync"
+app_name = "jellyfin-tracker-sync"
 client_id = "YOUR_SIMKL_CLIENT_ID"
 client_secret = "YOUR_SIMKL_CLIENT_SECRET"
 # Optional explicit callback override (defaults to http://<host>:3000/auth/callback)
 # redirect_uri = "http://YOUR_SERVER_IP:3000/auth/callback"
 
 [simkl.users]
+# Tokens can be automatically populated via the Web Dashboard at http://localhost:3000/
+
+[anilist]
+# Optional AniList setup: Register at https://anilist.co/settings/developer
+client_id = "YOUR_ANILIST_CLIENT_ID"
+client_secret = "YOUR_ANILIST_CLIENT_SECRET"
+# redirect_uri = "http://YOUR_SERVER_IP:3000/auth/anilist/callback"
+
+[anilist.users]
 # Tokens can be automatically populated via the Web Dashboard at http://localhost:3000/
 
 [ntfy]
@@ -119,10 +131,10 @@ topic = "YOUR_NTFY_TOPIC"
 Open your browser to **`http://<your-server-ip>:3000/`** (or `/auth`):
 
 - **Auto-Populated User List**: Automatically queries Jellyfin for your existing users.
-- **One-Click OAuth**: Select a user from the dropdown and click **Authorize on Simkl** (requests `scope=media:write` for watch history sync).
-- **Automated Storage**: After authorizing on Simkl, the callback securely exchanges the code and saves `{ token, refresh_token, expires_at }` directly into `config.toml` and runtime memory.
-- **Automatic Background Token Refresh**: Simkl access tokens last 7 days. The application automatically refreshes tokens in the background every 24 hours (and just-in-time whenever a watch event triggers if expiring within 24 hours). Because Simkl refresh tokens stay valid for 180 days sliding, active accounts will remain authenticated indefinitely without manual intervention.
-- **Health Checks & Manual Controls**: Displays live token validity and expiration countdowns for each user, with on-demand **↻ Refresh** and **Re-authorize** buttons. Legacy string tokens (`username = "token"`) also remain fully supported.
+- **One-Click OAuth**: Select a user from the dropdown and link with **Simkl** and/or **AniList**.
+- **Automated Storage**: After authorizing, callbacks securely exchange authorization codes and save access tokens directly into `config.toml` and runtime memory.
+- **Automatic Background Token Refresh**: Simkl access tokens are refreshed automatically in the background every 24 hours. AniList 1-year tokens are validated live on the dashboard with expiration tracking.
+- **Health Checks & Manual Controls**: Displays live token validity and expiration countdowns for each user, with on-demand **↻ Refresh** and **Re-authorize** buttons. Legacy string tokens (`username = "token"`) remain fully supported.
 
 ### 4. Mapping Overrides (Optional)
 
@@ -171,13 +183,13 @@ bun run format
 Build and run with Docker:
 
 ```bash
-docker build -t jellyfin-anime-sync .
+docker build -t jellyfin-tracker-sync .
 
 docker run -d \
-  --name jellyfin-anime-sync \
+  --name jellyfin-tracker-sync \
   -p 3000:3000 \
   -v /path/to/config-dir:/config \
-  jellyfin-anime-sync
+  jellyfin-tracker-sync
 ```
 
 ---

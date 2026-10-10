@@ -10,6 +10,13 @@ export type UserTokenEntry =
 
 export type LogLevel = 'debug' | 'info' | 'warn' | 'error';
 
+export interface AniListConfig {
+  client_id?: string;
+  client_secret?: string;
+  redirect_uri?: string;
+  users?: Record<string, UserTokenEntry>;
+}
+
 export type Config = {
   jellyfin?: { url: string; token: string };
   simkl: {
@@ -19,6 +26,7 @@ export type Config = {
     redirect_uri?: string;
     users: Record<string, UserTokenEntry>;
   };
+  anilist?: AniListConfig;
   ntfy?: { url: string; token: string; topic: string };
   logging?: {
     level?: LogLevel;
@@ -51,6 +59,12 @@ function validateConfig(config: any): asserts config is Config {
 
   if (!config.simkl.users || typeof config.simkl.users !== 'object') {
     config.simkl.users = {};
+  }
+
+  if (config.anilist) {
+    if (!config.anilist.users || typeof config.anilist.users !== 'object') {
+      config.anilist.users = {};
+    }
   }
 
   if (config.ntfy) {
@@ -109,7 +123,11 @@ export const extractUserAccessToken = (entry?: UserTokenEntry): string | null =>
   return entry.token || null;
 };
 
-export const saveUserToken = async (username: string, token: UserTokenEntry): Promise<void> => {
+const saveTokenToTomlSection = async (
+  sectionHeader: 'simkl.users' | 'anilist.users',
+  username: string,
+  token: UserTokenEntry,
+): Promise<void> => {
   if (!activeConfigPath) {
     throw new Error('Active config.toml file path is unknown.');
   }
@@ -127,33 +145,46 @@ export const saveUserToken = async (username: string, token: UserTokenEntry): Pr
     tokenValueStr = `{ ${parts.join(', ')} }`;
   }
 
-  // Ensure [simkl.users] section exists
-  const simklUsersRegex = /\[simkl\.users\]([\s\S]*?)(?=\n\[|\s*$)/;
-  const match = content.match(simklUsersRegex);
+  const escapedHeader = escapeRegExp(`[${sectionHeader}]`);
+  const sectionRegex = new RegExp(`${escapedHeader}([\\s\\S]*?)(?=\\n\\[|\\s*$)`);
+  const match = content.match(sectionRegex);
 
   if (match) {
     const userLineRegex = new RegExp(`^(\\s*${escapeRegExp(username)}\\s*=\\s*).*$`, 'm');
     if (userLineRegex.test(match[0])) {
-      // Replace existing user line
       const updatedSection = match[0].replace(userLineRegex, `${username} = ${tokenValueStr}`);
-      content = content.replace(simklUsersRegex, updatedSection);
+      content = content.replace(sectionRegex, updatedSection);
     } else {
-      // Append user to [simkl.users]
       const updatedSection = `${match[0].trimEnd()}\n${username} = ${tokenValueStr}\n`;
-      content = content.replace(simklUsersRegex, updatedSection);
+      content = content.replace(sectionRegex, updatedSection);
     }
   } else {
-    // Append [simkl.users] section
-    content = `${content.trimEnd()}\n\n[simkl.users]\n${username} = ${tokenValueStr}\n`;
+    content = `${content.trimEnd()}\n\n[${sectionHeader}]\n${username} = ${tokenValueStr}\n`;
   }
 
   await Bun.write(activeConfigPath, content);
+};
 
-  // Update live in-memory config
+export const saveUserToken = async (username: string, token: UserTokenEntry): Promise<void> => {
+  await saveTokenToTomlSection('simkl.users', username, token);
   if (!appConfig.simkl.users) {
     appConfig.simkl.users = {};
   }
   appConfig.simkl.users[username] = token;
+};
+
+export const saveAniListUserToken = async (
+  username: string,
+  token: UserTokenEntry,
+): Promise<void> => {
+  await saveTokenToTomlSection('anilist.users', username, token);
+  if (!appConfig.anilist) {
+    appConfig.anilist = { users: {} };
+  }
+  if (!appConfig.anilist.users) {
+    appConfig.anilist.users = {};
+  }
+  appConfig.anilist.users[username] = token;
 };
 
 export { activeConfigPath, appConfig };

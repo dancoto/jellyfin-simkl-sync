@@ -2,7 +2,13 @@ import { defaultAnimeResolver } from './anime';
 import { renderAuthHtml } from './auth/page';
 import { defaultJellyfinClient, type RawJellyfinPayload } from './jellyfin';
 import { handleWebhook } from './main';
-import { appConfig, saveUserToken } from './shared/config';
+import { appConfig, saveAniListUserToken, saveUserToken } from './shared/config';
+import {
+  consumeAniListOAuthSession,
+  exchangeCodeForAniListToken,
+  getAniListAuthUrl,
+  validateAniListUserToken,
+} from './anilist/auth';
 import {
   consumeOAuthSession,
   exchangeCodeForToken,
@@ -10,6 +16,7 @@ import {
   refreshUserToken,
   validateUserToken,
 } from './simkl/auth';
+import { flushAllAniListQueues } from './anilist/scrobbler';
 import { flushAllQueues } from './simkl/batcher';
 
 import { initLogger } from './shared/logger';
@@ -68,17 +75,41 @@ const getRedirectUri = (req: Request): string => {
   return `${proto}://${host}/auth/callback`;
 };
 
+const getAniListRedirectUri = (req: Request): string => {
+  if (appConfig.anilist?.redirect_uri) {
+    return appConfig.anilist.redirect_uri;
+  }
+  const url = new URL(req.url);
+  const host = req.headers.get('x-forwarded-host') || req.headers.get('host') || url.host;
+  const proto =
+    req.headers.get('x-forwarded-proto') || (url.protocol.startsWith('https') ? 'https' : 'http');
+  return `${proto}://${host}/auth/anilist/callback`;
+};
+
 const handleAuthPage = (req: Request) => {
   const url = new URL(req.url);
-  const redirectUri = getRedirectUri(req);
+  const simklRedirectUri = getRedirectUri(req);
+  const anilistRedirectUri = getAniListRedirectUri(req);
   const successUser = url.searchParams.get('success') ?? undefined;
+  const successService = url.searchParams.get('service') ?? undefined;
   const errorMessage = url.searchParams.get('error') ?? undefined;
 
   const html = renderAuthHtml({
     clientId: appConfig.simkl.client_id,
     hasClientSecret: Boolean(appConfig.simkl.client_secret),
-    redirectUri,
+    redirectUri: simklRedirectUri,
+    simkl: {
+      clientId: appConfig.simkl.client_id,
+      hasClientSecret: Boolean(appConfig.simkl.client_secret),
+      redirectUri: simklRedirectUri,
+    },
+    anilist: {
+      clientId: appConfig.anilist?.client_id,
+      hasClientSecret: Boolean(appConfig.anilist?.client_secret),
+      redirectUri: anilistRedirectUri,
+    },
     successUser,
+    successService,
     errorMessage,
   });
 
@@ -107,49 +138,100 @@ const server = Bun.serve({
         for (const u of Object.keys(appConfig.simkl.users || {})) {
           allUsernames.add(u);
         }
+        for (const u of Object.keys(appConfig.anilist?.users || {})) {
+          allUsernames.add(u);
+        }
 
         const userStatuses = await Promise.all(
           Array.from(allUsernames).map(async (username) => {
-            let entry = appConfig.simkl.users[username];
-            if (!entry) {
-              return {
-                username,
-                isConfigured: false,
-                isValid: false,
-                hasRefreshToken: false,
+            // Check Simkl status
+            let simklEntry = appConfig.simkl.users[username];
+            let simklStatus = {
+              isConfigured: false,
+              isValid: false,
+              simklUsername: undefined as string | undefined,
+              expiresInDays: undefined as number | undefined,
+              hasRefreshToken: false,
+              error: undefined as string | undefined,
+            };
+
+            if (simklEntry) {
+              const ONE_DAY_MS = 24 * 60 * 60 * 1000;
+              if (
+                typeof simklEntry === 'object' &&
+                simklEntry?.refresh_token &&
+                simklEntry?.expires_at
+              ) {
+                if (Date.now() + ONE_DAY_MS >= simklEntry.expires_at) {
+                  try {
+                    await refreshUserToken(username);
+                    simklEntry = appConfig.simkl.users[username];
+                  } catch (e) {
+                    console.error(`Auto-refresh during status check failed for "${username}":`, e);
+                  }
+                }
+              }
+
+              const check = await validateUserToken(simklEntry);
+              let expiresInDays: number | undefined;
+              const hasRefreshToken =
+                typeof simklEntry === 'object' && Boolean(simklEntry?.refresh_token);
+
+              if (typeof simklEntry === 'object' && simklEntry?.expires_at) {
+                const diffMs = simklEntry.expires_at - Date.now();
+                expiresInDays = Math.max(0, Math.round(diffMs / (24 * 60 * 60 * 1000)));
+              }
+
+              simklStatus = {
+                isConfigured: true,
+                isValid: check.valid,
+                simklUsername: check.simklUsername,
+                expiresInDays,
+                hasRefreshToken,
+                error: check.error,
               };
             }
 
-            // Proactively auto-refresh if expired or within 24 hours
-            const ONE_DAY_MS = 24 * 60 * 60 * 1000;
-            if (typeof entry === 'object' && entry?.refresh_token && entry?.expires_at) {
-              if (Date.now() + ONE_DAY_MS >= entry.expires_at) {
-                try {
-                  await refreshUserToken(username);
-                  entry = appConfig.simkl.users[username];
-                } catch (e) {
-                  console.error(`Auto-refresh during status check failed for "${username}":`, e);
-                }
+            // Check AniList status
+            const anilistEntry = appConfig.anilist?.users?.[username];
+            let anilistStatus = {
+              isConfigured: false,
+              isValid: false,
+              anilistUsername: undefined as string | undefined,
+              anilistUserId: undefined as number | undefined,
+              expiresInDays: undefined as number | undefined,
+              error: undefined as string | undefined,
+            };
+
+            if (anilistEntry) {
+              const check = await validateAniListUserToken(anilistEntry);
+              let expiresInDays: number | undefined;
+              if (typeof anilistEntry === 'object' && anilistEntry?.expires_at) {
+                const diffMs = anilistEntry.expires_at - Date.now();
+                expiresInDays = Math.max(0, Math.round(diffMs / (24 * 60 * 60 * 1000)));
               }
-            }
 
-            const check = await validateUserToken(entry);
-            let expiresInDays: number | undefined;
-            const hasRefreshToken = typeof entry === 'object' && Boolean(entry?.refresh_token);
-
-            if (typeof entry === 'object' && entry?.expires_at) {
-              const diffMs = entry.expires_at - Date.now();
-              expiresInDays = Math.max(0, Math.round(diffMs / (24 * 60 * 60 * 1000)));
+              anilistStatus = {
+                isConfigured: true,
+                isValid: check.valid,
+                anilistUsername: check.anilistUsername,
+                anilistUserId: check.anilistUserId,
+                expiresInDays,
+                error: check.error,
+              };
             }
 
             return {
               username,
-              isConfigured: true,
-              isValid: check.valid,
-              simklUsername: check.simklUsername,
-              expiresInDays,
-              hasRefreshToken,
-              error: check.error,
+              simkl: simklStatus,
+              anilist: anilistStatus,
+              // Top-level backwards compatibility
+              isConfigured: simklStatus.isConfigured,
+              isValid: simklStatus.isValid,
+              simklUsername: simklStatus.simklUsername,
+              expiresInDays: simklStatus.expiresInDays,
+              hasRefreshToken: simklStatus.hasRefreshToken,
+              error: simklStatus.error,
             };
           }),
         );
@@ -253,6 +335,79 @@ const server = Bun.serve({
         }
       },
     },
+    '/auth/anilist/login': {
+      GET: (req) => {
+        const url = new URL(req.url);
+        const username = url.searchParams.get('username');
+
+        if (!username) {
+          return Response.redirect('/?error=No+username+specified', 302);
+        }
+
+        const redirectUri = getAniListRedirectUri(req);
+        console.log(
+          `[OAuth] Initiating AniList authorization for user "${username}" with redirect_uri: "${redirectUri}"`,
+        );
+        try {
+          const { url: authUrl } = getAniListAuthUrl(username, redirectUri);
+          return Response.redirect(authUrl, 302);
+        } catch (err) {
+          return Response.redirect(
+            `/?error=${encodeURIComponent(err instanceof Error ? err.message : String(err))}`,
+            302,
+          );
+        }
+      },
+    },
+    '/auth/anilist/callback': {
+      GET: async (req) => {
+        const url = new URL(req.url);
+        const code = url.searchParams.get('code');
+        const state = url.searchParams.get('state');
+        const error = url.searchParams.get('error');
+        const errorDesc = url.searchParams.get('error_description');
+
+        if (error) {
+          return Response.redirect(`/?error=${encodeURIComponent(errorDesc || error)}`, 302);
+        }
+
+        if (!code || !state) {
+          return Response.redirect('/?error=Missing+authorization+code+or+state', 302);
+        }
+
+        const session = consumeAniListOAuthSession(state);
+        if (!session) {
+          return Response.redirect(
+            '/?error=Invalid+or+expired+authorization+session.+Please+try+again.',
+            302,
+          );
+        }
+
+        const { username, redirectUri } = session;
+
+        try {
+          const result = await exchangeCodeForAniListToken(code, redirectUri);
+          const expiresInSeconds = result.expiresIn ?? 31536000; // 1 year default
+          const expiresAt = Date.now() + expiresInSeconds * 1000;
+
+          await saveAniListUserToken(username, {
+            token: result.accessToken,
+            expires_at: expiresAt,
+          });
+          console.log(`Successfully authenticated and saved AniList token for user "${username}"`);
+          return Response.redirect(
+            `/?success=${encodeURIComponent(username)}&service=anilist`,
+            302,
+          );
+        } catch (err) {
+          console.error(`Error exchanging AniList code for user "${username}":`, err);
+          return Response.redirect(
+            `/?error=${encodeURIComponent(err instanceof Error ? err.message : String(err))}`,
+            302,
+          );
+        }
+      },
+    },
     '/webhook': {
       POST: async (req) => {
         const payload = (await req.json()) as RawJellyfinPayload;
@@ -283,6 +438,7 @@ const handleShutdown = async (signal: string) => {
   console.log(`Received ${signal}. Flushing pending scrobbles before exiting...`);
   try {
     await flushAllQueues();
+    await flushAllAniListQueues();
   } catch (err) {
     console.error('Error flushing queues during shutdown:', err);
   }

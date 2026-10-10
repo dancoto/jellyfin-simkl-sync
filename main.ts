@@ -1,4 +1,6 @@
 import { defaultAnimeResolver } from './anime';
+import { getAniListUserToken } from './anilist/auth';
+import { enqueueAniListScrobble } from './anilist/scrobbler';
 import {
   defaultJellyfinClient,
   isAnimeLibrary,
@@ -33,10 +35,25 @@ export const handleWebhook = async (
     seriesProviderIds: event.seriesProviderIds,
   });
 
-  // 1. Ensure user has valid token (auto-refreshes if nearing 7-day expiration)
-  const userToken = await getOrRefreshUserToken(event.username);
-  if (!userToken) {
-    logger.warn(`User "${event.username}" has no configured Simkl token. Nothing will be synced.`);
+  // 1. Ensure user has valid token (Simkl and/or AniList)
+  let simklToken: string | null = null;
+  try {
+    simklToken = await getOrRefreshUserToken(event.username);
+  } catch (err) {
+    logger.warn(`Failed to retrieve Simkl token for "${event.username}":`, err);
+  }
+
+  let anilistToken: string | null = null;
+  try {
+    anilistToken = getAniListUserToken(event.username);
+  } catch (err) {
+    logger.warn(`Failed to retrieve AniList token for "${event.username}":`, err);
+  }
+
+  if (!simklToken && !anilistToken) {
+    logger.warn(
+      `User "${event.username}" has no configured Simkl or AniList token. Nothing will be synced.`,
+    );
     return;
   }
 
@@ -116,6 +133,7 @@ export const handleWebhook = async (
             tvdbId: seriesProviderIds.tvdb,
             tmdbId: seriesProviderIds.tmdb,
             anidbId: seriesProviderIds.anidb ?? event.providerIds.anidb,
+            anilistId: seriesProviderIds.anilist ?? event.providerIds.anilist,
           },
           event.seasonNumber,
           ep,
@@ -127,7 +145,9 @@ export const handleWebhook = async (
             console.log(
               `No AniDB mapping found for anime "${event.seriesName ?? event.name}" (S${event.seasonNumber}E${ep}). Falling back to standard non-anime pipeline.`,
             );
-            await enqueueStandardEpisode(event, userToken, ep, options);
+            if (simklToken) {
+              await enqueueStandardEpisode(event, simklToken, ep, options);
+            }
           } else {
             console.log(
               `No anime mapping match found for special "${event.seriesName ?? event.name}" (S0E${ep}). Skipping anime scrobble.`,
@@ -138,19 +158,55 @@ export const handleWebhook = async (
             `Mapped anime "${event.seriesName ?? event.name}" S${event.seasonNumber}E${ep} -> AniDB ${resolved.animeId} Ep ${resolved.episodeNumber} (${resolved.source})`,
           );
 
-          await enqueueScrobble(
-            event.username,
-            userToken,
-            {
-              kind: 'anime_episode',
-              animeId: resolved.animeId,
-              episodeNumber: resolved.episodeNumber,
-              isSpecial: resolved.isSpecial,
-              seriesName: event.seriesName,
-              episodeName: ep === startEp ? event.name : `Episode ${ep}`,
-            },
-            options,
-          );
+          if (simklToken) {
+            try {
+              await enqueueScrobble(
+                event.username,
+                simklToken,
+                {
+                  kind: 'anime_episode',
+                  animeId: resolved.animeId,
+                  episodeNumber: resolved.episodeNumber,
+                  isSpecial: resolved.isSpecial,
+                  seriesName: event.seriesName,
+                  episodeName: ep === startEp ? event.name : `Episode ${ep}`,
+                },
+                options,
+              );
+            } catch (err) {
+              logger.error(
+                `[Simkl] Failed to enqueue scrobble for anime episode "${event.name}":`,
+                err,
+              );
+            }
+          }
+
+          if (anilistToken) {
+            try {
+              if (resolved.anilist) {
+                await enqueueAniListScrobble(
+                  event.username,
+                  anilistToken,
+                  {
+                    mediaId: resolved.anilist.mediaId,
+                    episodeNumber: resolved.anilist.episodeNumber,
+                    isMovie: false,
+                    title: event.seriesName ?? event.name,
+                  },
+                  options,
+                );
+              } else {
+                logger.info(
+                  `[AniList] No matching AniList mapping found for anime "${event.seriesName ?? event.name}" (AniDB ${resolved.animeId}). Skipping AniList scrobble.`,
+                );
+              }
+            } catch (err) {
+              logger.error(
+                `[AniList] Failed to enqueue scrobble for anime episode "${event.name}":`,
+                err,
+              );
+            }
+          }
         }
       }
     } else if (event.itemType === 'Movie') {
@@ -159,44 +215,89 @@ export const handleWebhook = async (
         imdbId: event.providerIds.imdb,
         tvdbId: event.providerIds.tvdb,
         anidbId: event.providerIds.anidb,
+        anilistId: event.providerIds.anilist,
       });
 
       if (!resolved) {
         logger.info(
           `No AniDB mapping found for anime movie "${event.name}". Falling back to standard movie pipeline with TMDB/IMDb/TVDB IDs.`,
         );
-        await enqueueStandardMovie(event, userToken, options);
+        if (simklToken) {
+          try {
+            await enqueueStandardMovie(event, simklToken, options);
+          } catch (err) {
+            logger.error(`[Simkl] Failed to enqueue movie "${event.name}":`, err);
+          }
+        }
       } else {
         logger.info(
           `Mapped anime movie "${event.name}" -> AniDB ${resolved.animeId} (${resolved.source})`,
         );
 
-        await enqueueScrobble(
-          event.username,
-          userToken,
-          {
-            kind: 'anime_movie',
-            animeId: resolved.animeId,
-            name: event.name,
-          },
-          options,
-        );
+        if (simklToken) {
+          try {
+            await enqueueScrobble(
+              event.username,
+              simklToken,
+              {
+                kind: 'anime_movie',
+                animeId: resolved.animeId,
+                name: event.name,
+              },
+              options,
+            );
+          } catch (err) {
+            logger.error(
+              `[Simkl] Failed to enqueue scrobble for anime movie "${event.name}":`,
+              err,
+            );
+          }
+        }
+
+        if (anilistToken) {
+          try {
+            if (resolved.anilist) {
+              await enqueueAniListScrobble(
+                event.username,
+                anilistToken,
+                {
+                  mediaId: resolved.anilist.mediaId,
+                  episodeNumber: 1,
+                  isMovie: true,
+                  title: event.name,
+                },
+                options,
+              );
+            } else {
+              logger.info(
+                `[AniList] No matching AniList mapping found for anime movie "${event.name}" (AniDB ${resolved.animeId}). Skipping AniList scrobble.`,
+              );
+            }
+          } catch (err) {
+            logger.error(
+              `[AniList] Failed to enqueue scrobble for anime movie "${event.name}":`,
+              err,
+            );
+          }
+        }
       }
     }
   } else {
     // === NON-ANIME / STANDARD MEDIA PIPELINE ===
-    if (event.itemType === 'Episode') {
-      const startEp = event.episodeNumber ?? 1;
-      const endEp =
-        event.episodeNumberEnd && event.episodeNumberEnd >= startEp
-          ? event.episodeNumberEnd
-          : startEp;
+    if (simklToken) {
+      if (event.itemType === 'Episode') {
+        const startEp = event.episodeNumber ?? 1;
+        const endEp =
+          event.episodeNumberEnd && event.episodeNumberEnd >= startEp
+            ? event.episodeNumberEnd
+            : startEp;
 
-      for (let ep = startEp; ep <= endEp; ep++) {
-        await enqueueStandardEpisode(event, userToken, ep, options);
+        for (let ep = startEp; ep <= endEp; ep++) {
+          await enqueueStandardEpisode(event, simklToken, ep, options);
+        }
+      } else if (event.itemType === 'Movie') {
+        await enqueueStandardMovie(event, simklToken, options);
       }
-    } else if (event.itemType === 'Movie') {
-      await enqueueStandardMovie(event, userToken, options);
     }
   }
 };

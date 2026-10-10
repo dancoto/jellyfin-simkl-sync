@@ -31,7 +31,7 @@ describe('Simkl Auth Module (OAuth 2.0 / AUTH V2)', () => {
   });
 
   test('getSimklAuthUrl should construct valid OAuth 2.0 authorization URL with PKCE', () => {
-    const { url, state } = getSimklAuthUrl('daniel', 'http://localhost:3000/auth/callback');
+    const { url, state } = getSimklAuthUrl('testuser', 'http://localhost:3000/auth/callback');
     const parsed = new URL(url);
 
     expect(parsed.origin).toBe('https://simkl.com');
@@ -105,7 +105,7 @@ describe('Simkl Auth Module (OAuth 2.0 / AUTH V2)', () => {
       return Promise.resolve(
         new Response(
           JSON.stringify({
-            user: { name: 'daniel_simkl' },
+            user: { name: 'test_simkl_user' },
           }),
         ),
       );
@@ -114,7 +114,7 @@ describe('Simkl Auth Module (OAuth 2.0 / AUTH V2)', () => {
 
     const status = await validateUserToken('valid-token');
     expect(status.valid).toBe(true);
-    expect(status.simklUsername).toBe('daniel_simkl');
+    expect(status.simklUsername).toBe('test_simkl_user');
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
     const [url, options] = fetchMock.mock.calls[0];

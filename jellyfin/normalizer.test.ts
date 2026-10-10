@@ -18,7 +18,7 @@ describe('Jellyfin Webhook Normalizer', () => {
   test('should normalize Episode webhook with flat Provider_ keys and LibraryName', () => {
     const raw = {
       NotificationType: 'PlaybackStop',
-      NotificationUsername: 'daniel',
+      NotificationUsername: 'testuser',
       ItemType: 'Episode',
       Name: 'The Journey Begins',
       SeriesName: 'Frieren: Beyond Journey’s End',
@@ -37,7 +37,7 @@ describe('Jellyfin Webhook Normalizer', () => {
     const event = normalizeJellyfinWebhook(raw);
 
     expect(event.notificationType).toBe('PlaybackStop');
-    expect(event.username).toBe('daniel');
+    expect(event.username).toBe('testuser');
     expect(event.itemType).toBe('Episode');
     expect(event.name).toBe('The Journey Begins');
     expect(event.seriesName).toBe('Frieren: Beyond Journey’s End');
@@ -81,7 +81,7 @@ describe('Jellyfin Webhook Normalizer', () => {
   test('should mark incomplete if progress < 80%', () => {
     const raw = {
       NotificationType: 'PlaybackStop',
-      NotificationUsername: 'daniel',
+      NotificationUsername: 'testuser',
       ItemType: 'Episode',
       PlaybackPositionTicks: 5000000000,
       RunTimeTicks: 10000000000, // 50%
@@ -96,7 +96,7 @@ describe('Jellyfin Webhook Normalizer', () => {
   test('should mark complete if Played is true regardless of ticks', () => {
     const raw = {
       NotificationType: 'UserDataSaved',
-      NotificationUsername: 'daniel',
+      NotificationUsername: 'testuser',
       ItemType: 'Episode',
       PlaybackPositionTicks: 0,
       RunTimeTicks: 0,
@@ -110,7 +110,7 @@ describe('Jellyfin Webhook Normalizer', () => {
   test('should parse episodeNumberEnd from IndexNumberEnd or EpisodeNumberEnd', () => {
     const raw = {
       NotificationType: 'PlaybackStop',
-      NotificationUsername: 'daniel',
+      NotificationUsername: 'testuser',
       ItemType: 'Episode',
       Name: 'Multi Part Episode',
       SeasonNumber: 1,

@@ -24,17 +24,23 @@ describe('Main Webhook Handler', () => {
 
     // Setup AniBridge test mappings in resolver
     const testAniBridge = AniBridgeIndex.parse({
-      // Attack on Titan TVDB 267440 Season 1 -> AniDB 9541
+      // Attack on Titan TVDB 267440 Season 1 -> AniDB 9541 -> AniList 16498
       'anidb:9541:R': {
         'tvdb_show:267440:s1': { '1-25': '1-25' },
+        'anilist:16498': { '1-25': '1-25' },
       },
       // Test Movie: TMDB 54321 -> AniDB 54321
       'anidb:54321:R': {
         'tmdb_movie:54321': { '1': '1' },
       },
-      // Valid Movie: TMDB 12345 -> AniDB 12345
+      // Valid Movie: TMDB 12345 -> AniDB 12345 -> AniList 164
       'anidb:12345:R': {
         'tmdb_movie:12345': { '1': '1' },
+        'anilist:164': { '1': '1' },
+      },
+      // Anime with AniDB mapping but NO AniList mapping: TVDB 77777 -> AniDB 7777
+      'anidb:7777:R': {
+        'tvdb_show:77777:s1': { '1-12': '1-12' },
       },
     });
     defaultAnimeResolver.setIndices(testAniBridge);
@@ -115,6 +121,41 @@ describe('Main Webhook Handler', () => {
         );
       }
 
+      // Mock AniList GraphQL API
+      if (url.includes('graphql.anilist.co')) {
+        const body = JSON.parse(options?.body || '{}');
+        if (body.query.includes('mutation')) {
+          return Promise.resolve(
+            new Response(
+              JSON.stringify({
+                data: {
+                  SaveMediaListEntry: {
+                    id: 101,
+                    mediaId: body.variables.mediaId,
+                    progress: body.variables.progress,
+                    status: body.variables.status,
+                  },
+                },
+              }),
+            ),
+          );
+        }
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              data: {
+                Media: {
+                  id: body.variables.mediaId,
+                  episodes: body.variables.mediaId === 164 ? 1 : 25,
+                  title: { english: 'Mock Anime' },
+                  mediaListEntry: { progress: 0, status: 'CURRENT' },
+                },
+              },
+            }),
+          ),
+        );
+      }
+
       // Default mock response for ntfy
       return Promise.resolve(new Response(JSON.stringify({ ok: true })));
     });
@@ -127,7 +168,7 @@ describe('Main Webhook Handler', () => {
     mock.restore();
   });
 
-  test('should exit early if user has no Simkl token', async () => {
+  test('should exit early if user has no Simkl or AniList token', async () => {
     const payload: any = {
       NotificationUsername: 'unknown-user',
     };
@@ -451,5 +492,328 @@ describe('Main Webhook Handler', () => {
     expect(simklBody.shows.length).toBe(1);
     expect(simklBody.shows[0].ids.anidb).toBe('9541');
     expect(simklBody.shows[0].seasons[0].episodes.map((e: any) => e.number)).toEqual([1, 2]);
+  });
+
+  test('should scrobble anime episode to AniList when only AniList token is configured', async () => {
+    appConfig.simkl.users = {};
+    appConfig.anilist = {
+      users: { 'test-user': 'mock-anilist-user-token' },
+    };
+
+    const payload: any = {
+      NotificationUsername: 'test-user',
+      ItemType: 'Episode',
+      Name: 'To You, in 2000 Years',
+      SeriesName: 'Attack on Titan',
+      LibraryName: 'Anime Shows',
+      SeasonNumber: 1,
+      EpisodeNumber: 1,
+      NotificationType: 'PlaybackStop',
+      RunTimeTicks: 1000,
+      PlaybackPositionTicks: 900,
+      Series_Provider_tvdb: '267440',
+    };
+
+    await handleWebhook(payload, { debounceMs: 50 });
+    await new Promise((resolve) => setTimeout(resolve, 100));
+
+    expect(fetchMock).toHaveBeenCalled();
+    const calls = fetchMock.mock.calls;
+
+    // Simkl API should NOT have been called
+    const simklCalls = calls.filter((c: any) => c[0].toString().includes('api.simkl.com'));
+    expect(simklCalls.length).toBe(0);
+
+    // AniList GraphQL should have been called (1 query + 1 mutation)
+    const anilistCalls = calls.filter((c: any) => c[0].toString().includes('graphql.anilist.co'));
+    expect(anilistCalls.length).toBe(2);
+
+    // Verify GraphQL query for Media entry
+    const queryCall = anilistCalls[0];
+    expect(queryCall[1].headers.Authorization).toBe('Bearer mock-anilist-user-token');
+    const queryBody = JSON.parse(queryCall[1].body);
+    expect(queryBody.variables.mediaId).toBe(16498);
+
+    // Verify GraphQL mutation for SaveMediaListEntry
+    const mutationCall = anilistCalls[1];
+    expect(mutationCall[1].headers.Authorization).toBe('Bearer mock-anilist-user-token');
+    const mutationBody = JSON.parse(mutationCall[1].body);
+    expect(mutationBody.variables.mediaId).toBe(16498);
+    expect(mutationBody.variables.progress).toBe(1);
+    expect(mutationBody.variables.status).toBe('CURRENT');
+  });
+
+  test('should scrobble to both Simkl and AniList when user has both tokens configured', async () => {
+    appConfig.simkl.users = { 'test-user': 'mock-simkl-user-token' };
+    appConfig.anilist = {
+      users: { 'test-user': 'mock-anilist-user-token' },
+    };
+
+    const payload: any = {
+      NotificationUsername: 'test-user',
+      ItemType: 'Episode',
+      Name: 'To You, in 2000 Years',
+      SeriesName: 'Attack on Titan',
+      LibraryName: 'Anime Shows',
+      SeasonNumber: 1,
+      EpisodeNumber: 1,
+      NotificationType: 'PlaybackStop',
+      RunTimeTicks: 1000,
+      PlaybackPositionTicks: 900,
+      Series_Provider_tvdb: '267440',
+    };
+
+    await handleWebhook(payload, { debounceMs: 50 });
+    await new Promise((resolve) => setTimeout(resolve, 100));
+
+    expect(fetchMock).toHaveBeenCalled();
+    const calls = fetchMock.mock.calls;
+
+    // Both Simkl and AniList should be called
+    const simklCalls = calls.filter((c: any) => c[0].toString().includes('api.simkl.com'));
+    expect(simklCalls.length).toBe(1);
+    const simklBody = JSON.parse(simklCalls[0][1].body);
+    expect(simklBody.shows[0].ids.anidb).toBe('9541');
+    expect(simklBody.shows[0].seasons[0].episodes[0].number).toBe(1);
+
+    const anilistCalls = calls.filter((c: any) => c[0].toString().includes('graphql.anilist.co'));
+    expect(anilistCalls.length).toBe(2);
+    const mutationCall = anilistCalls[1];
+    const mutationBody = JSON.parse(mutationCall[1].body);
+    expect(mutationBody.variables.mediaId).toBe(16498);
+    expect(mutationBody.variables.progress).toBe(1);
+  });
+
+  test('should debounce and scrobble multi-episode file (S01E01-E02) to AniList with highest progress', async () => {
+    appConfig.simkl.users = {};
+    appConfig.anilist = {
+      users: { 'test-user': 'mock-anilist-user-token' },
+    };
+
+    const payload: any = {
+      NotificationUsername: 'test-user',
+      ItemType: 'Episode',
+      SeriesName: 'Attack on Titan',
+      Name: 'Episode 1 & 2',
+      SeasonNumber: 1,
+      EpisodeNumber: 1,
+      IndexNumberEnd: 2,
+      LibraryName: 'Anime Shows',
+      NotificationType: 'PlaybackStop',
+      RunTimeTicks: 1000,
+      PlaybackPositionTicks: 900,
+      Series_Provider_tvdb: '267440',
+    };
+
+    await handleWebhook(payload, { debounceMs: 50 });
+    await new Promise((resolve) => setTimeout(resolve, 100));
+
+    const anilistCalls = fetchMock.mock.calls.filter((c: any) =>
+      c[0].toString().includes('graphql.anilist.co'),
+    );
+    // Should query once and mutate once with progress: 2
+    expect(anilistCalls.length).toBe(2);
+    const mutationBody = JSON.parse(anilistCalls[1][1].body);
+    expect(mutationBody.variables.mediaId).toBe(16498);
+    expect(mutationBody.variables.progress).toBe(2);
+  });
+
+  test('should scrobble anime movie with COMPLETED status to AniList', async () => {
+    appConfig.simkl.users = {};
+    appConfig.anilist = {
+      users: { 'test-user': 'mock-anilist-user-token' },
+    };
+
+    const payload: any = {
+      NotificationUsername: 'test-user',
+      ItemType: 'Movie',
+      Name: 'Test Anime Movie',
+      LibraryName: 'Anime Movies',
+      NotificationType: 'PlaybackStop',
+      RunTimeTicks: 1000,
+      PlaybackPositionTicks: 900,
+      Provider_tmdb: '12345',
+    };
+
+    await handleWebhook(payload, { debounceMs: 50 });
+    await new Promise((resolve) => setTimeout(resolve, 100));
+
+    const anilistCalls = fetchMock.mock.calls.filter((c: any) =>
+      c[0].toString().includes('graphql.anilist.co'),
+    );
+    expect(anilistCalls.length).toBe(2);
+    const mutationBody = JSON.parse(anilistCalls[1][1].body);
+    expect(mutationBody.variables.mediaId).toBe(164);
+    expect(mutationBody.variables.progress).toBe(1);
+    expect(mutationBody.variables.status).toBe('COMPLETED');
+  });
+
+  test('should skip AniList when anime has no AniList mapping but still scrobble to Simkl', async () => {
+    appConfig.simkl.users = { 'test-user': 'mock-simkl-user-token' };
+    appConfig.anilist = {
+      users: { 'test-user': 'mock-anilist-user-token' },
+    };
+
+    // TVDB 77777 maps to AniDB 7777 in testAniBridge, but has no AniList mapping
+    const payload: any = {
+      NotificationUsername: 'test-user',
+      ItemType: 'Episode',
+      Name: 'Episode 1',
+      SeriesName: 'Anime Without AniList',
+      LibraryName: 'Anime Shows',
+      SeasonNumber: 1,
+      EpisodeNumber: 1,
+      NotificationType: 'PlaybackStop',
+      RunTimeTicks: 1000,
+      PlaybackPositionTicks: 900,
+      Series_Provider_tvdb: '77777',
+    };
+
+    await handleWebhook(payload, { debounceMs: 50 });
+    await new Promise((resolve) => setTimeout(resolve, 100));
+
+    const simklCalls = fetchMock.mock.calls.filter((c: any) =>
+      c[0].toString().includes('api.simkl.com'),
+    );
+    expect(simklCalls.length).toBe(1);
+    const simklBody = JSON.parse(simklCalls[0][1].body);
+    expect(simklBody.shows[0].ids.anidb).toBe('7777');
+
+    const anilistCalls = fetchMock.mock.calls.filter((c: any) =>
+      c[0].toString().includes('graphql.anilist.co'),
+    );
+    expect(anilistCalls.length).toBe(0);
+  });
+
+  test('should not scrobble standard non-anime media to AniList', async () => {
+    appConfig.simkl.users = {};
+    appConfig.anilist = {
+      users: { 'test-user': 'mock-anilist-user-token' },
+    };
+
+    const payload: any = {
+      NotificationUsername: 'test-user',
+      ItemType: 'Episode',
+      Name: 'Pilot',
+      SeriesName: 'Breaking Bad',
+      LibraryName: 'TV Shows',
+      SeasonNumber: 1,
+      EpisodeNumber: 1,
+      Year: 2008,
+      NotificationType: 'PlaybackStop',
+      RunTimeTicks: 1000,
+      PlaybackPositionTicks: 900,
+      Series_Provider_tvdb: '81189',
+      Series_Provider_tmdb: '1396',
+    };
+
+    await handleWebhook(payload, { debounceMs: 50 });
+    await new Promise((resolve) => setTimeout(resolve, 100));
+
+    const anilistCalls = fetchMock.mock.calls.filter((c: any) =>
+      c[0].toString().includes('graphql.anilist.co'),
+    );
+    expect(anilistCalls.length).toBe(0);
+  });
+
+  test('should still attempt and execute AniList scrobble if Simkl fails with error', async () => {
+    appConfig.simkl.users = { 'test-user': 'mock-simkl-user-token' };
+    appConfig.anilist = {
+      users: { 'test-user': 'mock-anilist-user-token' },
+    };
+
+    // Override fetchMock so Simkl responds with HTTP 500 error
+    const baseFetch = fetchMock;
+    fetchMock = mock((urlInput: string | URL, options?: any) => {
+      const url = urlInput.toString();
+      if (url.includes('api.simkl.com')) {
+        return Promise.resolve(new Response('Simkl internal error', { status: 500 }));
+      }
+      return baseFetch(urlInput, options);
+    });
+    global.fetch = fetchMock;
+
+    const payload: any = {
+      NotificationUsername: 'test-user',
+      ItemType: 'Episode',
+      Name: 'To You, in 2000 Years',
+      SeriesName: 'Attack on Titan',
+      LibraryName: 'Anime Shows',
+      SeasonNumber: 1,
+      EpisodeNumber: 1,
+      NotificationType: 'PlaybackStop',
+      RunTimeTicks: 1000,
+      PlaybackPositionTicks: 900,
+      Series_Provider_tvdb: '267440',
+    };
+
+    await handleWebhook(payload, { debounceMs: 50 });
+    await new Promise((resolve) => setTimeout(resolve, 100));
+
+    // Simkl was attempted
+    const simklCalls = fetchMock.mock.calls.filter((c: any) =>
+      c[0].toString().includes('api.simkl.com'),
+    );
+    expect(simklCalls.length).toBeGreaterThan(0);
+
+    // AniList mutation still successfully executed!
+    const anilistMutationCalls = fetchMock.mock.calls.filter(
+      (c: any) =>
+        c[0].toString().includes('graphql.anilist.co') &&
+        c[1]?.body?.includes('SaveMediaListEntry'),
+    );
+    expect(anilistMutationCalls.length).toBe(1);
+    const body = JSON.parse(anilistMutationCalls[0][1].body);
+    expect(body.variables.mediaId).toBe(16498);
+    expect(body.variables.progress).toBe(1);
+  });
+
+  test('should still attempt and execute Simkl scrobble if AniList fails with error', async () => {
+    appConfig.simkl.users = { 'test-user': 'mock-simkl-user-token' };
+    appConfig.anilist = {
+      users: { 'test-user': 'mock-anilist-user-token' },
+    };
+
+    // Override fetchMock so AniList responds with HTTP 500
+    const baseFetch = fetchMock;
+    fetchMock = mock((urlInput: string | URL, options?: any) => {
+      const url = urlInput.toString();
+      if (url.includes('graphql.anilist.co')) {
+        return Promise.resolve(new Response('AniList service error', { status: 500 }));
+      }
+      return baseFetch(urlInput, options);
+    });
+    global.fetch = fetchMock;
+
+    const payload: any = {
+      NotificationUsername: 'test-user',
+      ItemType: 'Episode',
+      Name: 'To You, in 2000 Years',
+      SeriesName: 'Attack on Titan',
+      LibraryName: 'Anime Shows',
+      SeasonNumber: 1,
+      EpisodeNumber: 1,
+      NotificationType: 'PlaybackStop',
+      RunTimeTicks: 1000,
+      PlaybackPositionTicks: 900,
+      Series_Provider_tvdb: '267440',
+    };
+
+    await handleWebhook(payload, { debounceMs: 50 });
+    await new Promise((resolve) => setTimeout(resolve, 100));
+
+    // AniList was attempted
+    const anilistCalls = fetchMock.mock.calls.filter((c: any) =>
+      c[0].toString().includes('graphql.anilist.co'),
+    );
+    expect(anilistCalls.length).toBeGreaterThan(0);
+
+    // Simkl was successfully called!
+    const simklCalls = fetchMock.mock.calls.filter((c: any) =>
+      c[0].toString().includes('api.simkl.com'),
+    );
+    expect(simklCalls.length).toBe(1);
+    const simklBody = JSON.parse(simklCalls[0][1].body);
+    expect(simklBody.shows[0].ids.anidb).toBe('9541');
   });
 });

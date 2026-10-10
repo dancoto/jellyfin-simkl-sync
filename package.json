@@ -1,8 +1,8 @@
 {
-  "name": "jellyfin-simkl-sync",
+  "name": "jellyfin-tracker-sync",
   "version": "1.0.0",
   "private": true,
-  "description": "Lightweight webhook server syncing Jellyfin watch history to Simkl with automated AniDB anime cross-referencing and non-anime media support using Bun",
+  "description": "Lightweight webhook server syncing Jellyfin watch history to Simkl and AniList with automated AniBridge anime cross-referencing and non-anime media support using Bun",
   "license": "MIT",
   "author": "Daniel Coto",
   "type": "module",

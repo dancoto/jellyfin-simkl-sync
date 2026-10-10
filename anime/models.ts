@@ -32,18 +32,27 @@ export interface AnimeEpisodeResult {
   isSpecial: boolean;
   kind: EpisodeKind;
   source: 'overrides' | 'anibridge' | 'animelist';
+  anilist?: {
+    mediaId: number;
+    episodeNumber: number;
+  };
 }
 
 export interface AnimeMovieResult {
   animeId: string;
   episodeNumber: number;
   source: 'overrides' | 'anibridge' | 'animelist';
+  anilist?: {
+    mediaId: number;
+    episodeNumber: number;
+  };
 }
 
 export interface SeriesLookupQuery {
   tvdbId?: string;
   tmdbId?: string;
   anidbId?: string;
+  anilistId?: string;
 }
 
 export interface MovieLookupQuery {
@@ -51,4 +60,5 @@ export interface MovieLookupQuery {
   imdbId?: string;
   tvdbId?: string;
   anidbId?: string;
+  anilistId?: string;
 }

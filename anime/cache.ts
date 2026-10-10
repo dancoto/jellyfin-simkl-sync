@@ -61,7 +61,7 @@ export const getOrDownloadFile = async (
   try {
     const response = await fetch(url, {
       headers: {
-        'User-Agent': 'jellyfin-simkl-sync/1.0',
+        'User-Agent': 'jellyfin-tracker-sync/1.0',
       },
     });
 

@@ -3,7 +3,7 @@
   "configVersion": 1,
   "workspaces": {
     "": {
-      "name": "jellyfin-simkl-sync",
+      "name": "jellyfin-tracker-sync",
       "devDependencies": {
         "@types/bun": "latest",
         "oxfmt": "^0.53.0",

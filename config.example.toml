@@ -12,6 +12,16 @@ client_secret = "YOUR_SIMKL_CLIENT_SECRET"
 [simkl.users]
 your_jellyfin_username = "YOUR_SIMKL_USER_TOKEN"
 
+[anilist]
+# Optional: Create an AniList developer client at https://anilist.co/settings/developer
+# client_id = "YOUR_ANILIST_CLIENT_ID"
+# client_secret = "YOUR_ANILIST_CLIENT_SECRET"
+# Optional: Set explicit callback URL (default: http://<host>:3000/auth/anilist/callback)
+# redirect_uri = "http://your-server-ip:3000/auth/anilist/callback"
+
+[anilist.users]
+# your_jellyfin_username = "YOUR_ANILIST_USER_TOKEN"
+
 [ntfy]
 url = "https://ntfy.sh"
 token = "YOUR_NTFY_TOKEN"
