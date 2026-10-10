@@ -16,13 +16,16 @@ import type {
   SeriesLookupQuery,
 } from './models';
 import { loadOverrides } from './overrides';
+import { TvdbOverridesIndex } from './tvdb-overrides';
 
 export interface ResolverOptions extends CacheOptions {
   overridesPath?: string;
+  tvdbOverridesPath?: string;
   enableAnimeListFallback?: boolean;
 }
 
 export class AnimeResolver {
+  private tvdbOverrides: TvdbOverridesIndex | null = null;
   private overrides: AniBridgeIndex | null = null;
   private aniBridge: AniBridgeIndex | null = null;
   private animeList: AnimeListIndex | null = null;
@@ -30,6 +33,7 @@ export class AnimeResolver {
 
   public async initialize(options: ResolverOptions = {}): Promise<void> {
     // 1. Load manual overrides
+    this.tvdbOverrides = TvdbOverridesIndex.load(options.tvdbOverridesPath);
     this.overrides = loadOverrides(options.overridesPath);
 
     // 2. Load AniBridge mappings
@@ -73,11 +77,17 @@ export class AnimeResolver {
     aniBridge: AniBridgeIndex | null,
     overrides: AniBridgeIndex | null = null,
     animeList: AnimeListIndex | null = null,
+    tvdbOverrides: TvdbOverridesIndex | null = null,
   ): void {
     this.aniBridge = aniBridge;
     this.overrides = overrides;
     this.animeList = animeList;
+    this.tvdbOverrides = tvdbOverrides;
     this.initialized = true;
+  }
+
+  public setTvdbOverrides(tvdbOverrides: TvdbOverridesIndex | null): void {
+    this.tvdbOverrides = tvdbOverrides;
   }
 
   public resolveEpisode(
@@ -87,6 +97,137 @@ export class AnimeResolver {
   ): AnimeEpisodeResult | null {
     if (!this.initialized) {
       console.warn('AnimeResolver: queried before initialization.');
+    }
+
+    // 0. Check TVDB-driven manual overrides first
+    const tvdbOverride = this.tvdbOverrides?.getEpisodeOverride(
+      series.tvdbId,
+      seasonNumber,
+      episodeNumber,
+    );
+
+    if (tvdbOverride) {
+      if (tvdbOverride.skip) {
+        return {
+          animeId: '',
+          episodeNumber,
+          isSpecial: seasonNumber === 0,
+          kind: seasonNumber === 0 ? 'special' : 'regular',
+          source: 'overrides',
+          isSkipped: true,
+          skipAniDb: true,
+          skipAniList: true,
+        };
+      }
+
+      // If anidbId is explicitly specified in override
+      if (tvdbOverride.anidbId !== undefined) {
+        const result: AnimeEpisodeResult = {
+          animeId: tvdbOverride.anidbId,
+          episodeNumber: tvdbOverride.anidbEpisode ?? episodeNumber,
+          isSpecial: tvdbOverride.isSpecial ?? seasonNumber === 0,
+          kind: (tvdbOverride.isSpecial ?? seasonNumber === 0) ? 'special' : 'regular',
+          source: 'overrides',
+          skipAniDb: tvdbOverride.skipAniDb,
+          skipAniList: tvdbOverride.skipAniList,
+        };
+
+        if (tvdbOverride.skipAniList) {
+          result.anilist = undefined;
+          return result;
+        }
+
+        if (tvdbOverride.anilistId !== undefined) {
+          result.anilist = {
+            mediaId: tvdbOverride.anilistId,
+            episodeNumber: tvdbOverride.anilistEpisode ?? result.episodeNumber,
+          };
+          return result;
+        }
+
+        return this.attachAniListMapping(result, series.anilistId);
+      }
+
+      // If anidbId was explicitly set to null (skipAniDb)
+      if (tvdbOverride.skipAniDb) {
+        const result: AnimeEpisodeResult = {
+          animeId: '',
+          episodeNumber,
+          isSpecial: tvdbOverride.isSpecial ?? seasonNumber === 0,
+          kind: (tvdbOverride.isSpecial ?? seasonNumber === 0) ? 'special' : 'regular',
+          source: 'overrides',
+          skipAniDb: true,
+          skipAniList: tvdbOverride.skipAniList,
+        };
+
+        if (tvdbOverride.anilistId !== undefined && !tvdbOverride.skipAniList) {
+          result.anilist = {
+            mediaId: tvdbOverride.anilistId,
+            episodeNumber: tvdbOverride.anilistEpisode ?? episodeNumber,
+          };
+        }
+        return result;
+      }
+
+      // If anidbId was not specified (partial override for AniList):
+      // Resolve through standard pipeline first
+      let partialResult: AnimeEpisodeResult | null = null;
+      if (seasonNumber === 0) {
+        partialResult = this.resolveSpecial(series, episodeNumber);
+      } else {
+        partialResult =
+          this.resolveRegularFromIndex(
+            this.overrides,
+            series,
+            seasonNumber,
+            episodeNumber,
+            'overrides',
+          ) ||
+          this.resolveRegularFromIndex(
+            this.aniBridge,
+            series,
+            seasonNumber,
+            episodeNumber,
+            'anibridge',
+          ) ||
+          this.resolveRegularFromAnimeList(series, seasonNumber, episodeNumber);
+
+        if (!partialResult && series.anidbId && seasonNumber === 1) {
+          partialResult = {
+            animeId: series.anidbId,
+            episodeNumber,
+            isSpecial: false,
+            kind: 'regular',
+            source: 'overrides',
+          };
+        }
+      }
+
+      if (tvdbOverride.skipAniList) {
+        if (!partialResult) return null;
+        partialResult.skipAniList = true;
+        partialResult.anilist = undefined;
+        return partialResult;
+      }
+
+      if (tvdbOverride.anilistId !== undefined) {
+        if (!partialResult) {
+          partialResult = {
+            animeId: '',
+            episodeNumber,
+            isSpecial: seasonNumber === 0,
+            kind: seasonNumber === 0 ? 'special' : 'regular',
+            source: 'overrides',
+            skipAniDb: true,
+          };
+        }
+        partialResult.anilist = {
+          mediaId: tvdbOverride.anilistId,
+          episodeNumber:
+            tvdbOverride.anilistEpisode ?? (partialResult.episodeNumber || episodeNumber),
+        };
+        return partialResult;
+      }
     }
 
     let result: AnimeEpisodeResult | null = null;

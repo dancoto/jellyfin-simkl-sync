@@ -1,0 +1,420 @@
+import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
+import { defaultAnimeResolver } from '../anime';
+import { appConfig } from '../shared/config';
+
+interface EpisodeItem {
+  Id: string;
+  Name?: string;
+  SeriesId?: string;
+  SeriesName?: string;
+  IndexNumber?: number;
+  ParentIndexNumber?: number;
+  ProviderIds?: Record<string, string>;
+}
+
+interface SeriesItem {
+  Id: string;
+  Name?: string;
+  ProviderIds?: Record<string, string>;
+}
+
+interface MissingEpisodeEntry {
+  seriesName: string;
+  seasonNumber: number;
+  episodeNumber: number;
+  episodeName: string;
+  seriesTvdbId?: string;
+  seriesTmdbId?: string;
+  episodeTvdbId?: string;
+  episodeTmdbId?: string;
+  status: 'missing_anidb' | 'missing_anilist' | 'missing_tvdb';
+  resolvedAniDbId?: string;
+  resolvedAniDbEpisode?: number;
+}
+
+interface SeriesSummary {
+  seriesName: string;
+  seriesTvdbId?: string;
+  seriesTmdbId?: string;
+  missingCount: number;
+  missingAniDbCount: number;
+  missingAniListCount: number;
+  episodes: MissingEpisodeEntry[];
+}
+
+interface AuditReport {
+  generatedAt: string;
+  libraryName: string;
+  summary: {
+    totalEpisodesAudited: number;
+    totalFullyMatched: number;
+    totalSkipped: number;
+    totalUnresolved: number;
+    missingAniDbCount: number;
+    missingAniListCount: number;
+    missingTvdbCount: number;
+    affectedSeriesCount: number;
+  };
+  unresolvedBySeries: SeriesSummary[];
+  allUnresolvedEpisodes: MissingEpisodeEntry[];
+}
+
+const parseArgs = () => {
+  const args = process.argv.slice(2);
+  let libraryName = 'Anime';
+  let outputPath = 'data/missing-anime.json';
+  let generateTemplate = false;
+
+  for (const arg of args) {
+    if (arg.startsWith('--library=')) {
+      libraryName = arg.split('=')[1] || libraryName;
+    } else if (arg.startsWith('--output=')) {
+      outputPath = arg.split('=')[1] || outputPath;
+    } else if (arg === '--template' || arg === '--generate-template') {
+      generateTemplate = true;
+    } else if (arg === '--help' || arg === '-h') {
+      console.log(`
+Usage: bun scripts/find-missing-anime.ts [options]
+
+Options:
+  --library=<name>   Jellyfin library name to scan (default: "Anime")
+  --output=<file>    Destination JSON file path (default: "data/missing-anime.json")
+  --template         Also generate a starter data/mapping-overrides.template.json
+  --help, -h         Show this help message
+      `);
+      process.exit(0);
+    }
+  }
+
+  return { libraryName, outputPath, generateTemplate };
+};
+
+export const runAudit = async () => {
+  const { libraryName, outputPath, generateTemplate } = parseArgs();
+
+  const jellyfinConfig = appConfig.jellyfin;
+  if (!jellyfinConfig?.url || !jellyfinConfig?.token) {
+    console.error('Error: Jellyfin is not configured in config.toml (missing url or token).');
+    process.exit(1);
+  }
+
+  console.log('1. Initializing Anime Resolver (AniBridge + Anime-Lists)...');
+  await defaultAnimeResolver.initialize();
+
+  const headers = {
+    Authorization: `MediaBrowser Token="${jellyfinConfig.token}"`,
+    Accept: 'application/json',
+  };
+
+  console.log(`2. Finding Jellyfin library "${libraryName}"...`);
+  const vFoldersRes = await fetch(`${jellyfinConfig.url}/Library/VirtualFolders`, { headers });
+  if (!vFoldersRes.ok) {
+    throw new Error(
+      `Failed to fetch Jellyfin virtual folders: HTTP ${vFoldersRes.status} ${vFoldersRes.statusText}`,
+    );
+  }
+  const vFolders = (await vFoldersRes.json()) as Array<{ Name: string; ItemId: string }>;
+  const targetFolder = vFolders.find(
+    (f) =>
+      f.Name.toLowerCase() === libraryName.toLowerCase() ||
+      f.Name.toLowerCase().includes(libraryName.toLowerCase()),
+  );
+
+  if (!targetFolder) {
+    console.error(`Error: Library "${libraryName}" not found on Jellyfin.`);
+    console.log('Available libraries:', vFolders.map((f) => f.Name).join(', '));
+    process.exit(1);
+  }
+
+  console.log(`   Found library "${targetFolder.Name}" (ID: ${targetFolder.ItemId})`);
+
+  console.log('3. Loading all series metadata from library...');
+  const seriesUrl = new URL('/Items', jellyfinConfig.url);
+  seriesUrl.searchParams.set('parentId', targetFolder.ItemId);
+  seriesUrl.searchParams.set('recursive', 'true');
+  seriesUrl.searchParams.set('includeItemTypes', 'Series');
+  seriesUrl.searchParams.set('fields', 'ProviderIds,Name');
+
+  const seriesRes = await fetch(seriesUrl.toString(), { headers });
+  if (!seriesRes.ok) {
+    throw new Error(`Failed to fetch series: HTTP ${seriesRes.status}`);
+  }
+  const seriesData = (await seriesRes.json()) as { Items?: SeriesItem[] };
+  const seriesItems = seriesData.Items || [];
+
+  const seriesMap = new Map<
+    string,
+    { name: string; providerIds: Record<string, string | undefined> }
+  >();
+  for (const item of seriesItems) {
+    const normProv: Record<string, string | undefined> = {};
+    if (item.ProviderIds) {
+      for (const [k, v] of Object.entries(item.ProviderIds)) {
+        if (v) normProv[k.toLowerCase()] = String(v);
+      }
+    }
+    seriesMap.set(item.Id, {
+      name: item.Name || 'Unknown Series',
+      providerIds: normProv,
+    });
+  }
+  console.log(`   Loaded ${seriesMap.size} series.`);
+
+  console.log('4. Fetching episodes and auditing mappings...');
+  const pageSize = 1000;
+  let startIndex = 0;
+  let totalEpisodes = 0;
+  let fullyMatchedCount = 0;
+  let skippedCount = 0;
+  const unresolvedEpisodes: MissingEpisodeEntry[] = [];
+
+  while (true) {
+    const epUrl = new URL('/Items', jellyfinConfig.url);
+    epUrl.searchParams.set('parentId', targetFolder.ItemId);
+    epUrl.searchParams.set('recursive', 'true');
+    epUrl.searchParams.set('includeItemTypes', 'Episode');
+    epUrl.searchParams.set('isMissing', 'false');
+    epUrl.searchParams.set('startIndex', String(startIndex));
+    epUrl.searchParams.set('limit', String(pageSize));
+    epUrl.searchParams.set(
+      'fields',
+      'ProviderIds,SeriesId,SeriesName,IndexNumber,ParentIndexNumber,Name',
+    );
+
+    const epRes = await fetch(epUrl.toString(), { headers });
+    if (!epRes.ok) {
+      throw new Error(`Failed to fetch episodes at index ${startIndex}: HTTP ${epRes.status}`);
+    }
+
+    const epData = (await epRes.json()) as {
+      TotalRecordCount?: number;
+      Items?: EpisodeItem[];
+    };
+    const items = epData.Items || [];
+    if (totalEpisodes === 0 && epData.TotalRecordCount !== undefined) {
+      totalEpisodes = epData.TotalRecordCount;
+      console.log(`   Total episodes on server: ${totalEpisodes}`);
+    }
+
+    if (items.length === 0) {
+      break;
+    }
+
+    for (const ep of items) {
+      const sId = ep.SeriesId || '';
+      const sInfo = seriesMap.get(sId);
+      const seriesName = sInfo?.name ?? ep.SeriesName ?? 'Unknown Series';
+      const seasonNumber = ep.ParentIndexNumber ?? 0;
+      const episodeNumber = ep.IndexNumber ?? 1;
+      const episodeName = ep.Name ?? `Episode ${episodeNumber}`;
+
+      const sProv = sInfo?.providerIds ?? {};
+      const epProv: Record<string, string | undefined> = {};
+      if (ep.ProviderIds) {
+        for (const [k, v] of Object.entries(ep.ProviderIds)) {
+          if (v) epProv[k.toLowerCase()] = String(v);
+        }
+      }
+
+      const tvdbId = sProv.tvdb ?? epProv.tvdb;
+      const tmdbId = sProv.tmdb ?? epProv.tmdb;
+      const anidbId = sProv.anidb ?? epProv.anidb;
+      const anilistId = sProv.anilist ?? epProv.anilist;
+
+      if (!tvdbId) {
+        unresolvedEpisodes.push({
+          seriesName,
+          seasonNumber,
+          episodeNumber,
+          episodeName,
+          seriesTvdbId: sProv.tvdb,
+          seriesTmdbId: sProv.tmdb,
+          episodeTvdbId: epProv.tvdb,
+          episodeTmdbId: epProv.tmdb,
+          status: 'missing_tvdb',
+        });
+        continue;
+      }
+
+      const resolved = defaultAnimeResolver.resolveEpisode(
+        {
+          tvdbId,
+          tmdbId,
+          anidbId,
+          anilistId,
+        },
+        seasonNumber,
+        episodeNumber,
+      );
+
+      if (resolved?.isSkipped) {
+        skippedCount++;
+        continue;
+      }
+
+      const hasAniDb = Boolean(resolved?.animeId) || Boolean(resolved?.skipAniDb);
+      const hasAniList = Boolean(resolved?.anilist?.mediaId) || Boolean(resolved?.skipAniList);
+
+      if (hasAniDb && hasAniList) {
+        // Matched or intentionally skipped! Exclude from output as requested.
+        if (resolved?.skipAniDb || resolved?.skipAniList) {
+          skippedCount++;
+        } else {
+          fullyMatchedCount++;
+        }
+      } else {
+        unresolvedEpisodes.push({
+          seriesName,
+          seasonNumber,
+          episodeNumber,
+          episodeName,
+          seriesTvdbId: sProv.tvdb,
+          seriesTmdbId: sProv.tmdb,
+          episodeTvdbId: epProv.tvdb,
+          episodeTmdbId: epProv.tmdb,
+          status: !hasAniDb ? 'missing_anidb' : 'missing_anilist',
+          resolvedAniDbId: resolved?.animeId,
+          resolvedAniDbEpisode: resolved?.episodeNumber,
+        });
+      }
+    }
+
+    startIndex += items.length;
+    process.stdout.write(
+      `   Audited ${startIndex} / ${totalEpisodes || startIndex} episodes (${fullyMatchedCount} matched, ${unresolvedEpisodes.length} unresolved)...\r`,
+    );
+
+    if (items.length < pageSize) {
+      break;
+    }
+  }
+
+  process.stdout.write('\n');
+
+  // Group by series
+  const seriesGroups = new Map<string, SeriesSummary>();
+  let missingAniDbCount = 0;
+  let missingAniListCount = 0;
+  let missingTvdbCount = 0;
+
+  for (const ep of unresolvedEpisodes) {
+    if (ep.status === 'missing_anidb') missingAniDbCount++;
+    else if (ep.status === 'missing_anilist') missingAniListCount++;
+    else if (ep.status === 'missing_tvdb') missingTvdbCount++;
+
+    let group = seriesGroups.get(ep.seriesName);
+    if (!group) {
+      group = {
+        seriesName: ep.seriesName,
+        seriesTvdbId: ep.seriesTvdbId,
+        seriesTmdbId: ep.seriesTmdbId,
+        missingCount: 0,
+        missingAniDbCount: 0,
+        missingAniListCount: 0,
+        episodes: [],
+      };
+      seriesGroups.set(ep.seriesName, group);
+    }
+
+    group.missingCount++;
+    if (ep.status === 'missing_anidb') group.missingAniDbCount++;
+    if (ep.status === 'missing_anilist') group.missingAniListCount++;
+    group.episodes.push(ep);
+  }
+
+  const unresolvedBySeries = Array.from(seriesGroups.values()).sort(
+    (a, b) => b.missingCount - a.missingCount || a.seriesName.localeCompare(b.seriesName),
+  );
+
+  const report: AuditReport = {
+    generatedAt: new Date().toISOString(),
+    libraryName: targetFolder.Name,
+    summary: {
+      totalEpisodesAudited: startIndex,
+      totalFullyMatched: fullyMatchedCount,
+      totalSkipped: skippedCount,
+      totalUnresolved: unresolvedEpisodes.length,
+      missingAniDbCount,
+      missingAniListCount,
+      missingTvdbCount,
+      affectedSeriesCount: unresolvedBySeries.length,
+    },
+    unresolvedBySeries,
+    allUnresolvedEpisodes: unresolvedEpisodes,
+  };
+
+  const resolvedOutputPath = resolve(outputPath);
+  const outDir = dirname(resolvedOutputPath);
+  if (!existsSync(outDir)) {
+    mkdirSync(outDir, { recursive: true });
+  }
+
+  writeFileSync(resolvedOutputPath, JSON.stringify(report, null, 2), 'utf-8');
+
+  if (generateTemplate) {
+    const overrides: Record<string, any> = {};
+
+    for (const s of unresolvedBySeries) {
+      if (!s.seriesTvdbId) continue;
+
+      const seasonsObj: Record<string, any> = {};
+      const bySeason = new Map<number, MissingEpisodeEntry[]>();
+      for (const ep of s.episodes) {
+        let list = bySeason.get(ep.seasonNumber);
+        if (!list) {
+          list = [];
+          bySeason.set(ep.seasonNumber, list);
+        }
+        list.push(ep);
+      }
+
+      const sortedSeasons = Array.from(bySeason.keys()).sort((a, b) => a - b);
+      for (const seasonNum of sortedSeasons) {
+        const eps = bySeason.get(seasonNum) || [];
+        eps.sort((a, b) => a.episodeNumber - b.episodeNumber);
+
+        const episodesObj: Record<string, any> = {};
+        for (const ep of eps) {
+          episodesObj[String(ep.episodeNumber)] = {
+            name: ep.episodeName,
+            anidbId: ep.resolvedAniDbId ?? null,
+            anidbEpisode: ep.resolvedAniDbEpisode ?? (ep.resolvedAniDbId ? ep.episodeNumber : null),
+            anilistId: null,
+            anilistEpisode: null,
+          };
+        }
+        seasonsObj[String(seasonNum)] = { episodes: episodesObj };
+      }
+
+      overrides[s.seriesTvdbId] = {
+        title: s.seriesName,
+        tmdbId: s.seriesTmdbId,
+        seasons: seasonsObj,
+      };
+    }
+
+    const templatePath = resolve('mapping-overrides.json');
+    writeFileSync(templatePath, JSON.stringify(overrides, null, 2), 'utf-8');
+    console.log(`Generated overrides file with missing values as null: ${templatePath}`);
+  }
+
+  console.log('\n================ AUDIT SUMMARY ================');
+  console.log(`Total episodes scanned:       ${startIndex}`);
+  console.log(`Fully matched (excluded):     ${fullyMatchedCount}`);
+  console.log(`Total unresolved saved:       ${unresolvedEpisodes.length}`);
+  console.log(`  - Missing AniDB:            ${missingAniDbCount}`);
+  console.log(`  - Missing AniList:          ${missingAniListCount}`);
+  console.log(`  - Missing TVDB in Jellyfin: ${missingTvdbCount}`);
+  console.log(`Affected series:              ${unresolvedBySeries.length}`);
+  console.log(`Report written to:            ${resolvedOutputPath}`);
+  if (generateTemplate) {
+    console.log(`Overrides template:           ${resolve('mapping-overrides.json')}`);
+  }
+  console.log('================================================\n');
+};
+
+runAudit().catch((error) => {
+  console.error('Audit failed with error:', error);
+  process.exit(1);
+});

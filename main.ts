@@ -153,35 +153,41 @@ export const handleWebhook = async (
               `No anime mapping match found for special "${event.seriesName ?? event.name}" (S0E${ep}). Skipping anime scrobble.`,
             );
           }
-        } else {
-          console.log(
-            `Mapped anime "${event.seriesName ?? event.name}" S${event.seasonNumber}E${ep} -> AniDB ${resolved.animeId} Ep ${resolved.episodeNumber} (${resolved.source})`,
+        } else if (resolved.isSkipped) {
+          logger.info(
+            `[Resolver] Episode "${event.seriesName ?? event.name}" (S${event.seasonNumber}E${ep}) is marked as skipped in overrides. Skipping scrobble.`,
           );
+        } else {
+          if (resolved.animeId && !resolved.skipAniDb) {
+            console.log(
+              `Mapped anime "${event.seriesName ?? event.name}" S${event.seasonNumber}E${ep} -> AniDB ${resolved.animeId} Ep ${resolved.episodeNumber} (${resolved.source})`,
+            );
 
-          if (simklToken) {
-            try {
-              await enqueueScrobble(
-                event.username,
-                simklToken,
-                {
-                  kind: 'anime_episode',
-                  animeId: resolved.animeId,
-                  episodeNumber: resolved.episodeNumber,
-                  isSpecial: resolved.isSpecial,
-                  seriesName: event.seriesName,
-                  episodeName: ep === startEp ? event.name : `Episode ${ep}`,
-                },
-                options,
-              );
-            } catch (err) {
-              logger.error(
-                `[Simkl] Failed to enqueue scrobble for anime episode "${event.name}":`,
-                err,
-              );
+            if (simklToken) {
+              try {
+                await enqueueScrobble(
+                  event.username,
+                  simklToken,
+                  {
+                    kind: 'anime_episode',
+                    animeId: resolved.animeId,
+                    episodeNumber: resolved.episodeNumber,
+                    isSpecial: resolved.isSpecial,
+                    seriesName: event.seriesName,
+                    episodeName: ep === startEp ? event.name : `Episode ${ep}`,
+                  },
+                  options,
+                );
+              } catch (err) {
+                logger.error(
+                  `[Simkl] Failed to enqueue scrobble for anime episode "${event.name}":`,
+                  err,
+                );
+              }
             }
           }
 
-          if (anilistToken) {
+          if (anilistToken && !resolved.skipAniList) {
             try {
               if (resolved.anilist) {
                 await enqueueAniListScrobble(

@@ -36,6 +36,9 @@ export interface AnimeEpisodeResult {
     mediaId: number;
     episodeNumber: number;
   };
+  isSkipped?: boolean;
+  skipAniDb?: boolean;
+  skipAniList?: boolean;
 }
 
 export interface AnimeMovieResult {

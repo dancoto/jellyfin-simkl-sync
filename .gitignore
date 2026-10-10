@@ -26,6 +26,7 @@ report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
 .eslintcache
 .cache
 data/
+mapping-overrides.json
 *.tsbuildinfo
 
 # IntelliJ based IDEs
