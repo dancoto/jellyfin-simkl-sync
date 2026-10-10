@@ -136,7 +136,7 @@ export const exchangeCodeForToken = async (
     method: 'POST',
     headers: {
       'Content-Type': 'application/x-www-form-urlencoded',
-      'User-Agent': `${appConfig.simkl.app_name || 'jellyfin-simkl-sync'}/2.0`,
+      'User-Agent': `${appConfig.simkl.app_name || 'jellyfin-tracker-sync'}/2.0`,
       Accept: 'application/json',
     },
     body: params.toString(),
@@ -201,7 +201,7 @@ export const refreshUserToken = async (username: string): Promise<string> => {
     method: 'POST',
     headers: {
       'Content-Type': 'application/x-www-form-urlencoded',
-      'User-Agent': `${appConfig.simkl.app_name || 'jellyfin-simkl-sync'}/2.0`,
+      'User-Agent': `${appConfig.simkl.app_name || 'jellyfin-tracker-sync'}/2.0`,
       Accept: 'application/json',
     },
     body: params.toString(),
@@ -286,7 +286,7 @@ export const validateUserToken = async (
   }
 
   const clientId = appConfig.simkl.client_id;
-  const appName = appConfig.simkl.app_name || 'jellyfin-simkl-sync';
+  const appName = appConfig.simkl.app_name || 'jellyfin-tracker-sync';
 
   try {
     const url = new URL('https://api.simkl.com/users/settings');

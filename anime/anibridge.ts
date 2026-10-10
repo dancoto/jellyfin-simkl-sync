@@ -8,10 +8,16 @@ export interface MovieClaim {
   kind: EpisodeKind;
 }
 
+export interface AniListTargetMapping {
+  anilistMediaId: number;
+  mapping: Record<string, string>;
+}
+
 export class AniBridgeIndex {
   public readonly entriesByTvdb: Map<string, AniBridgeEntry[]> = new Map();
   public readonly entriesByTmdb: Map<string, AniBridgeEntry[]> = new Map();
   public readonly entriesByAnimeId: Map<string, AniBridgeEntry> = new Map();
+  public readonly anilistByAnimeScope: Map<string, AniListTargetMapping[]> = new Map();
   public readonly moviesByKey: Map<string, MovieClaim> = new Map();
   public readonly tvdbToTmdbShow: Map<string, string> = new Map();
   public readonly tmdbToTvdbShow: Map<string, string> = new Map();
@@ -73,6 +79,18 @@ export class AniBridgeIndex {
         this.processTvdbShowTarget(animeId, kind, descriptor, mapping, spansByTvdb);
       } else if (descriptor.startsWith('tmdb_show:')) {
         this.processTmdbShowTarget(animeId, descriptor);
+      } else if (descriptor.startsWith('anilist:')) {
+        const id = parseInt(descriptor.slice('anilist:'.length), 10);
+        if (Number.isInteger(id)) {
+          const scopeLetter = kind === 'special' ? 'S' : kind === 'other' ? 'O' : 'R';
+          const scopeKey = `${animeId}:${scopeLetter}`;
+          let list = this.anilistByAnimeScope.get(scopeKey);
+          if (!list) {
+            list = [];
+            this.anilistByAnimeScope.set(scopeKey, list);
+          }
+          list.push({ anilistMediaId: id, mapping });
+        }
       }
     }
 
@@ -311,6 +329,40 @@ export class AniBridgeIndex {
       const match = this.moviesByKey.get(`tvdb:${tvdbId}`);
       if (match) return match;
     }
+    return null;
+  }
+
+  public resolveAniList(
+    animeId: string,
+    kind: EpisodeKind,
+    episodeNumber: number,
+  ): { mediaId: number; episodeNumber: number } | null {
+    const scopeLetter = kind === 'special' ? 'S' : kind === 'other' ? 'O' : 'R';
+    const targets = this.anilistByAnimeScope.get(`${animeId}:${scopeLetter}`);
+    if (!targets) {
+      return null;
+    }
+
+    for (const target of targets) {
+      for (const [sourceKey, targetVal] of Object.entries(target.mapping)) {
+        const sourceRanges = readAllRanges(sourceKey);
+        const targetDesc = readTarget(String(targetVal));
+        if (!sourceRanges || !targetDesc) continue;
+
+        const pairs = pair(sourceRanges, targetDesc.ranges, targetDesc.ratio);
+        for (const [src, tgt] of pairs) {
+          const last = src.end ?? Number.MAX_SAFE_INTEGER;
+          if (episodeNumber >= src.start && episodeNumber <= last) {
+            const offset = episodeNumber - src.start;
+            return {
+              mediaId: target.anilistMediaId,
+              episodeNumber: tgt.start + offset,
+            };
+          }
+        }
+      }
+    }
+
     return null;
   }
 }

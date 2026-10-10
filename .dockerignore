@@ -6,4 +6,5 @@ data/
 docs/
 config.toml
 config.yaml
+*.xml
 README.md

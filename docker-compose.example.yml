@@ -1,8 +1,8 @@
 services:
-  jellyfin-simkl-sync:
+  jellyfin-tracker-sync:
     build: .
-    image: jellyfin-simkl-sync:latest
-    container_name: jellyfin-simkl-sync
+    image: jellyfin-tracker-sync:latest
+    container_name: jellyfin-tracker-sync
     restart: unless-stopped
     # Optional: match your host user UID:GID (or "0:0" for root)
     user: '1000:1000'
@@ -12,9 +12,9 @@ services:
       # Mount your configuration file (must be writable for token auto-refresh):
       - ./config.toml:/config/config.toml:rw
       # Persist downloaded anime mapping caches (~11MB) across container restarts/updates:
-      - simkl-cache:/config/cache:rw
+      - mapping-cache:/config/cache:rw
     environment:
       - TZ=America/New_York
 
 volumes:
-  simkl-cache:
+  mapping-cache:
