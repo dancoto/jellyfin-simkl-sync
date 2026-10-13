@@ -1,5 +1,5 @@
 import { existsSync, unlinkSync } from 'fs';
-import { afterEach, beforeEach, describe, expect, mock, test } from 'bun:test';
+import { afterAll, afterEach, beforeEach, describe, expect, mock, test } from 'bun:test';
 import { AniBridgeIndex, defaultAnimeResolver } from './anime';
 import { TvdbOverridesIndex } from './anime/tvdb-overrides';
 import { defaultJellyfinClient } from './jellyfin';
@@ -185,6 +185,11 @@ describe('Main Webhook Handler', () => {
     mock.restore();
   });
 
+  afterAll(async () => {
+    defaultAnimeResolver.reset();
+    await defaultAnimeResolver.initialize();
+  });
+
   test('should exit early if user has no Simkl or AniList token', async () => {
     const payload: any = {
       NotificationUsername: 'unknown-user',
@@ -264,6 +269,63 @@ describe('Main Webhook Handler', () => {
     expect(simklBody.shows[0].ids.tvdb).toBe('81189');
     expect(simklBody.shows[0].ids.tmdb).toBe('1396');
     expect(simklBody.shows[0].title).toBe('Breaking Bad');
+  });
+
+  test('should completely exclude and skip webhook sync when LibraryName is Other Anime', async () => {
+    const payload: any = {
+      NotificationUsername: 'test-user',
+      ItemType: 'Episode',
+      Name: 'Episode 1',
+      SeriesName: 'Bible Black',
+      LibraryName: 'Other Anime',
+      SeasonNumber: 1,
+      EpisodeNumber: 1,
+      NotificationType: 'PlaybackStop',
+      RunTimeTicks: 1000,
+      PlaybackPositionTicks: 900,
+      Series_Provider_tvdb: '364395',
+    };
+
+    await handleWebhook(payload);
+
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  test('should completely exclude and skip webhook sync when LibraryName is Other Anime Movies', async () => {
+    const payload: any = {
+      NotificationUsername: 'test-user',
+      ItemType: 'Movie',
+      Name: 'Adult Anime Movie',
+      LibraryName: 'Other Anime Movies',
+      NotificationType: 'PlaybackStop',
+      RunTimeTicks: 1000,
+      PlaybackPositionTicks: 900,
+      Provider_tmdb: '999999',
+    };
+
+    await handleWebhook(payload);
+
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  test('should completely exclude and skip webhook sync when path contains other anime', async () => {
+    const payload: any = {
+      NotificationUsername: 'test-user',
+      ItemType: 'Episode',
+      Name: 'Episode 1',
+      SeriesName: 'Adult Show',
+      Path: '/data/media/other-anime/show/ep1.mkv',
+      SeasonNumber: 1,
+      EpisodeNumber: 1,
+      NotificationType: 'PlaybackStop',
+      RunTimeTicks: 1000,
+      PlaybackPositionTicks: 900,
+      Series_Provider_tvdb: '364395',
+    };
+
+    await handleWebhook(payload);
+
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   test('should route standard movie when Library is Movies', async () => {

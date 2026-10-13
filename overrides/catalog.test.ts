@@ -29,6 +29,8 @@ describe('Jellyfin Anime Catalog & Sparse Overrides Pruner', () => {
             JSON.stringify([
               { Name: 'Anime', ItemId: 'folder-anime' },
               { Name: 'Movies', ItemId: 'folder-movies' },
+              { Name: 'Other Anime', ItemId: 'folder-other-anime' },
+              { Name: 'Other Anime Movies', ItemId: 'folder-other-anime-movies' },
             ]),
           ),
         );

@@ -1,5 +1,5 @@
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
-import { defaultAnimeResolver } from '../anime';
+import { defaultAnimeResolver, type AnimeResolver } from '../anime';
 import {
   TvdbOverridesIndex,
   type RawShowOverride,
@@ -13,6 +13,7 @@ import {
   type CatalogSyncOptions,
 } from './catalog';
 import { renderOverridesHtml } from './page';
+import { retireRedundantOverrides } from './retire';
 
 export interface OfficialEpisodeInfo {
   anilistId: number;
@@ -97,11 +98,29 @@ export const handleGetOverrides = async (): Promise<Response> => {
       official[tvdbId][seasonNumStr] = {};
       for (const [epNumStr] of Object.entries(season.episodes || {})) {
         const epNum = parseInt(epNumStr, 10);
-        const resolved = defaultAnimeResolver.resolveOfficialEpisode(
+        let resolved = defaultAnimeResolver.resolveOfficialEpisode(
           { tvdbId, tmdbId: show.tmdbId },
           seasonNum,
           epNum,
         );
+
+        // Fallback: If Season 0 Episode 1 (standalone movie) is not a TV special, check official movie mapping
+        if (!resolved?.anilist && seasonNum === 0 && epNum === 1) {
+          const movieResolved = defaultAnimeResolver.resolveOfficialMovie({
+            tvdbId,
+            tmdbId: show.tmdbId,
+          });
+          if (movieResolved?.anilist) {
+            resolved = {
+              episodeNumber: movieResolved.episodeNumber,
+              isSpecial: false,
+              kind: 'regular',
+              source: movieResolved.source,
+              anilist: movieResolved.anilist,
+            };
+          }
+        }
+
         if (resolved?.anilist) {
           official[tvdbId][seasonNumStr][epNumStr] = {
             anilistId: resolved.anilist.mediaId,
@@ -208,3 +227,41 @@ export const handleSyncCatalog = async (req: Request): Promise<Response> => {
 
 /** Alias for backward compatibility */
 export const handleImportOverrides = handleSyncCatalog;
+
+export const handleRetireRedundantOverrides = async (
+  req: Request,
+  customResolver?: AnimeResolver,
+): Promise<Response> => {
+  try {
+    let customOverridesPath: string | undefined;
+    if (req.headers.get('content-type')?.includes('application/json')) {
+      try {
+        const body = (await req.json()) as { customOverridesPath?: string };
+        customOverridesPath = body.customOverridesPath;
+      } catch {
+        customOverridesPath = undefined;
+      }
+    }
+
+    const resolver = customResolver || defaultAnimeResolver;
+    if (!resolver.isInitialized()) {
+      await resolver.initialize();
+    }
+
+    const summary = retireRedundantOverrides({
+      customOverridesPath,
+      resolver,
+    });
+
+    return Response.json({
+      success: true,
+      summary,
+    });
+  } catch (err) {
+    console.error('Error retiring redundant overrides:', err);
+    return Response.json(
+      { error: err instanceof Error ? err.message : String(err) },
+      { status: 500 },
+    );
+  }
+};

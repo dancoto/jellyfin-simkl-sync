@@ -1,8 +1,10 @@
+import { existsSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs';
 import { describe, expect, test } from 'bun:test';
 import {
   handleGetOverrides,
   handleImportOverrides,
   handleOverridesPage,
+  handleRetireRedundantOverrides,
   handleSaveOverrides,
   handleSyncCatalog,
 } from './api';
@@ -26,6 +28,8 @@ describe('Overrides Web Endpoints', () => {
     expect(html).toContain('Sync Library');
     expect(html).toContain('Official AniList');
     expect(html).toContain('Override AniList');
+    expect(html).toContain('Retire Redundant');
+    expect(html).toContain('retire-btn');
   });
 
   test('handleGetOverrides should return 200 with overrides, catalog, filePath, and official mappings', async () => {
@@ -41,6 +45,11 @@ describe('Overrides Web Endpoints', () => {
     expect(data.catalog).toBeDefined();
     expect(data.overrides).toBeDefined();
     expect(data.official).toBeDefined();
+
+    // Verify official movie mapping resolution (e.g. Your Name. TVDB 197 -> AniList 21519)
+    if (data.catalog?.['197']) {
+      expect(data.official?.['197']?.['0']?.['1']?.anilistId).toBe(21519);
+    }
   });
 
   test('handleSaveOverrides should reject missing body parameters with 400', async () => {
@@ -67,5 +76,95 @@ describe('Overrides Web Endpoints', () => {
 
     const legacyRes = await handleImportOverrides(req);
     expect([200, 500]).toContain(legacyRes.status);
+  });
+
+  test('handleRetireRedundantOverrides should retire matching overrides and return summary', async () => {
+    const tempOverridesPath = `/tmp/test-api-retire-${Date.now()}-${Math.random().toString(36).slice(2)}.json`;
+
+    // 457471: Yowayowa Sensei S1E1 matches official AniBridge (185211 ep 1)
+    // 82310: Princess Lover! S0E1 diverges (8231 vs official 7468)
+    const testOverrides = {
+      '457471': {
+        title: 'Yowayowa Sensei',
+        seasons: {
+          '1': {
+            episodes: {
+              '1': { name: 'Episode 1', anilistId: 185211, anilistEpisode: 1 },
+            },
+          },
+        },
+      },
+      '82310': {
+        title: 'Princess Lover!',
+        seasons: {
+          '0': {
+            episodes: {
+              '1': { name: 'OVA 1', anilistId: 8231, anilistEpisode: 1 },
+            },
+          },
+        },
+      },
+    };
+
+    writeFileSync(tempOverridesPath, JSON.stringify(testOverrides, null, 2), 'utf-8');
+
+    const mockResolver: any = {
+      isInitialized: () => true,
+      initialize: async () => {},
+      resolveOfficialEpisode: (series: any, _seasonNumber: number, episodeNumber: number) => {
+        if (series.tvdbId === '457471') {
+          return {
+            anilist: { mediaId: 185211, episodeNumber },
+            source: 'anibridge',
+          };
+        }
+        if (series.tvdbId === '82310') {
+          return {
+            anilist: { mediaId: 7468, episodeNumber },
+            source: 'anibridge',
+          };
+        }
+        return null;
+      },
+    };
+
+    try {
+      const req = new Request('http://localhost:3000/api/overrides/retire-redundant', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ customOverridesPath: tempOverridesPath }),
+      });
+
+      const res = await handleRetireRedundantOverrides(req, mockResolver);
+      expect(res.status).toBe(200);
+      const data = (await res.json()) as {
+        success: boolean;
+        summary: {
+          retiredCount: number;
+          affectedShowsCount: number;
+          affectedShowTitles: string[];
+          backupPath?: string;
+          details: any[];
+        };
+      };
+
+      expect(data.success).toBe(true);
+      expect(data.summary.retiredCount).toBe(1);
+      expect(data.summary.affectedShowsCount).toBe(1);
+      expect(data.summary.affectedShowTitles).toContain('Yowayowa Sensei');
+
+      // Verify file on disk
+      const updated = JSON.parse(readFileSync(tempOverridesPath, 'utf-8'));
+      expect(updated['457471']).toBeUndefined();
+      expect(updated['82310']).toBeDefined();
+
+      if (data.summary.backupPath && existsSync(data.summary.backupPath)) {
+        unlinkSync(data.summary.backupPath);
+      }
+    } finally {
+      if (existsSync(tempOverridesPath)) {
+        unlinkSync(tempOverridesPath);
+      }
+    }
   });
 });

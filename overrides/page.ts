@@ -212,6 +212,7 @@ export const renderOverridesHtml = (): string => {
         <button class="filter-btn" data-filter="skipped-anilist" onclick="setFilter('skipped-anilist')">🌸 Skipped AniList</button>
         <button class="filter-btn" data-filter="complete" onclick="setFilter('complete')">Completed</button>
         <button class="btn btn-secondary btn-sm" onclick="syncJellyfinCatalog()" id="sync-btn" title="Scan Jellyfin anime libraries and refresh catalog cache">🔄 Sync Library</button>
+        <button class="btn btn-secondary btn-sm" onclick="retireRedundantOverrides()" id="retire-btn" title="Retire custom overrides that are 100% identical to official AniBridge mappings">🧹 Retire Redundant</button>
         <button class="btn btn-secondary btn-sm" onclick="toggleAllCards()" id="toggle-all-btn">Expand All</button>
       </div>
     </div>
@@ -284,6 +285,44 @@ export const renderOverridesHtml = (): string => {
         await loadOverrides();
       } catch (err) {
         showToast('Sync error: ' + err.message, 'error');
+      } finally {
+        btn.innerHTML = originalText;
+        btn.disabled = false;
+      }
+    }
+
+    async function retireRedundantOverrides() {
+      const confirmed = confirm('Check and retire custom overrides that are 100% identical to official AniBridge mappings?\\n\\nExplicit skips and explicit unmapped nulls will NOT be touched. A timestamped backup will be created automatically.');
+      if (!confirmed) return;
+
+      const btn = document.getElementById('retire-btn');
+      const originalText = btn.innerHTML;
+      btn.innerHTML = '🧹 Retiring...';
+      btn.disabled = true;
+
+      try {
+        const res = await fetch('/api/overrides/retire-redundant', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({}),
+        });
+        const data = await res.json();
+        if (!res.ok || data.error) {
+          throw new Error(data.error || 'Failed to retire redundant overrides');
+        }
+
+        const s = data.summary;
+        if (s.retiredCount > 0) {
+          showToast(
+            'Retired ' + s.retiredCount + ' redundant override(s) across ' + s.affectedShowsCount + ' show(s)!',
+            'success'
+          );
+        } else {
+          showToast('No redundant overrides found. All custom overrides diverge from official mappings.', 'success');
+        }
+        await loadOverrides();
+      } catch (err) {
+        showToast('Retire error: ' + err.message, 'error');
       } finally {
         btn.innerHTML = originalText;
         btn.disabled = false;

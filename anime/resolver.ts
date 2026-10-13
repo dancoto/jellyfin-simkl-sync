@@ -22,6 +22,7 @@ import {
   type EnsureShowOverrideParams,
   type EnsureShowOverrideResult,
 } from './tvdb-overrides';
+import { retireRedundantOverrides } from '../overrides/retire';
 
 interface InternalEpisodeCandidate {
   internalAnimeId?: string;
@@ -41,6 +42,7 @@ export interface ResolverOptions extends CacheOptions {
   overridesPath?: string;
   tvdbOverridesPath?: string;
   enableAnimeListFallback?: boolean;
+  autoRetireRedundant?: boolean;
 }
 
 export class AnimeResolver {
@@ -92,6 +94,23 @@ export class AnimeResolver {
     }
 
     this.initialized = true;
+
+    // 4. Automatically retire redundant overrides that are identical to newly loaded official mappings
+    if (options.autoRetireRedundant !== false && this.aniBridge) {
+      try {
+        const retireSummary = retireRedundantOverrides({
+          customOverridesPath: this.tvdbOverridesPath,
+          resolver: this,
+        });
+        if (retireSummary.retiredCount > 0) {
+          console.log(
+            `[AnimeResolver] Automatically retired ${retireSummary.retiredCount} redundant override(s) across ${retireSummary.affectedShowsCount} show(s) matching upstream AniBridge.`,
+          );
+        }
+      } catch (err) {
+        console.error('[AnimeResolver] Failed retiring redundant overrides:', err);
+      }
+    }
   }
 
   public setIndices(
@@ -108,7 +127,16 @@ export class AnimeResolver {
   }
 
   public isInitialized(): boolean {
-    return this.initialized;
+    return this.initialized && this.aniBridge !== null;
+  }
+
+  public reset(): void {
+    this.aniBridge = null;
+    this.overrides = null;
+    this.animeList = null;
+    this.tvdbOverrides = null;
+    this.tvdbOverridesPath = undefined;
+    this.initialized = false;
   }
 
   public setTvdbOverrides(tvdbOverrides: TvdbOverridesIndex | null): void {
@@ -285,22 +313,57 @@ export class AnimeResolver {
       console.warn('AnimeResolver: queried before initialization.');
     }
 
-    let candidate: InternalMovieCandidate | null = null;
+    // 1. TVDB / JSON overrides (mapping-overrides.json)
+    if (this.tvdbOverrides && movie.tvdbId) {
+      const tvdbOverride = this.tvdbOverrides.getEpisodeOverride(movie.tvdbId, 0, 1);
+      if (tvdbOverride) {
+        if (tvdbOverride.skip || tvdbOverride.skipAniList) {
+          return {
+            episodeNumber: 1,
+            source: 'overrides',
+            skipAniList: true,
+          };
+        }
+        if (tvdbOverride.anilistId !== undefined) {
+          return {
+            episodeNumber: tvdbOverride.anilistEpisode ?? 1,
+            source: 'overrides',
+            anilist: {
+              mediaId: tvdbOverride.anilistId,
+              episodeNumber: tvdbOverride.anilistEpisode ?? 1,
+            },
+            skipAniList: false,
+          };
+        }
+      }
+    }
 
-    // 1. Overrides
+    // 2. AniBridge-format manual overrides
     if (this.overrides) {
       const match = this.overrides.resolveMovie(movie.tmdbId, movie.imdbId, movie.tvdbId);
       if (match) {
-        candidate = {
+        const candidate: InternalMovieCandidate = {
           internalAnimeId: match.animeId,
           episodeNumber: match.episodeNumber,
           source: 'overrides',
         };
+        return this.attachAniListMovieMapping(candidate, movie);
       }
     }
 
-    // 2. AniBridge
-    if (!candidate && this.aniBridge) {
+    // 3. Fall back to official movie mappings
+    return this.resolveOfficialMovie(movie);
+  }
+
+  public resolveOfficialMovie(movie: MovieLookupQuery): AnimeMovieResult | null {
+    if (!this.initialized) {
+      console.warn('AnimeResolver: queried before initialization.');
+    }
+
+    let candidate: InternalMovieCandidate | null = null;
+
+    // 1. AniBridge
+    if (this.aniBridge) {
       const match = this.aniBridge.resolveMovie(movie.tmdbId, movie.imdbId, movie.tvdbId);
       if (match) {
         candidate = {
@@ -311,7 +374,7 @@ export class AnimeResolver {
       }
     }
 
-    // 3. AnimeList
+    // 2. AnimeList
     if (!candidate && this.animeList) {
       const match = this.animeList.resolveMovie(movie.tmdbId, movie.imdbId, movie.tvdbId);
       if (match) {

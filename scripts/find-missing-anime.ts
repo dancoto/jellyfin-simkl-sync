@@ -1,6 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { defaultAnimeResolver } from '../anime';
+import { isExcludedLibrary } from '../jellyfin/normalizer';
 import { syncJellyfinCatalog } from '../overrides/catalog';
 import { importJellyfinAnimeMappings } from '../overrides/importer';
 import { appConfig } from '../shared/config';
@@ -165,8 +166,9 @@ export const runAudit = async () => {
   const vFolders = (await vFoldersRes.json()) as Array<{ Name: string; ItemId: string }>;
   const targetFolder = vFolders.find(
     (f) =>
-      f.Name.toLowerCase() === libraryName.toLowerCase() ||
-      f.Name.toLowerCase().includes(libraryName.toLowerCase()),
+      !isExcludedLibrary(f.Name) &&
+      (f.Name.toLowerCase() === libraryName.toLowerCase() ||
+        f.Name.toLowerCase().includes(libraryName.toLowerCase())),
   );
 
   if (!targetFolder) {

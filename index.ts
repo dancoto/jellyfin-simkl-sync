@@ -4,6 +4,7 @@ import {
   handleGetOverrides,
   handleImportOverrides,
   handleOverridesPage,
+  handleRetireRedundantOverrides,
   handleSaveOverrides,
   handleSyncCatalog,
 } from './overrides/api';
@@ -146,6 +147,9 @@ const server = Bun.serve({
     },
     '/api/catalog/sync': {
       POST: handleSyncCatalog,
+    },
+    '/api/overrides/retire-redundant': {
+      POST: (req) => handleRetireRedundantOverrides(req),
     },
     '/api/users': {
       GET: async () => {

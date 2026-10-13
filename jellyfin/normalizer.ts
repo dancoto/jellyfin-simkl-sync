@@ -1,7 +1,37 @@
+import { appConfig } from '../shared/config';
 import type { NormalizedPlaybackEvent, RawJellyfinPayload } from './models';
 
-export const isAnimeLibrary = (libraryName?: string | null): boolean => {
+export const DEFAULT_EXCLUDED_LIBRARIES = ['Other Anime', 'Other Anime Movies'];
+export const DEFAULT_ANIME_LIBRARIES = ['Anime', 'Anime Movies'];
+
+export const isExcludedLibrary = (
+  libraryName?: string | null,
+  excludedList?: string[],
+): boolean => {
   if (!libraryName) return false;
+  const list =
+    excludedList ?? appConfig?.jellyfin?.excluded_libraries ?? DEFAULT_EXCLUDED_LIBRARIES;
+  const normalized = libraryName.toLowerCase().trim();
+  return list.some((item) => normalized === item.toLowerCase().trim());
+};
+
+export const isAnimeLibrary = (
+  libraryName?: string | null,
+  options?: { animeLibraries?: string[]; excludedLibraries?: string[] },
+): boolean => {
+  if (!libraryName) return false;
+  if (isExcludedLibrary(libraryName, options?.excludedLibraries)) return false;
+
+  const animeList = options?.animeLibraries ?? appConfig?.jellyfin?.anime_libraries;
+
+  if (animeList && animeList.length > 0) {
+    const normalized = libraryName.toLowerCase().trim();
+    return animeList.some(
+      (item) =>
+        normalized === item.toLowerCase().trim() || normalized.includes(item.toLowerCase().trim()),
+    );
+  }
+
   return libraryName.toLowerCase().includes('anime');
 };
 

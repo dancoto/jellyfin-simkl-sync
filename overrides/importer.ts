@@ -6,7 +6,7 @@ import {
   type RawSeasonOverride,
   type RawTvdbOverrides,
 } from '../anime/tvdb-overrides';
-import { isAnimeLibrary } from '../jellyfin/normalizer';
+import { isAnimeLibrary, isExcludedLibrary } from '../jellyfin/normalizer';
 import { appConfig } from '../shared/config';
 import { logger } from '../shared/logger';
 
@@ -77,7 +77,9 @@ export const importJellyfinAnimeMappings = async (
   let targetFolders = vFolders.filter((f) => isAnimeLibrary(f.Name));
   if (options?.libraryNames && options.libraryNames.length > 0) {
     const selected = options.libraryNames.map((n) => n.toLowerCase());
-    targetFolders = targetFolders.filter((f) => selected.includes(f.Name.toLowerCase()));
+    targetFolders = vFolders.filter(
+      (f) => selected.includes(f.Name.toLowerCase()) && !isExcludedLibrary(f.Name),
+    );
   }
 
   if (targetFolders.length === 0) {

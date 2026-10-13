@@ -4,6 +4,7 @@ import { enqueueAniListScrobble } from './anilist/scrobbler';
 import {
   defaultJellyfinClient,
   isAnimeLibrary,
+  isExcludedLibrary,
   normalizeJellyfinWebhook,
   type RawJellyfinPayload,
 } from './jellyfin';
@@ -63,6 +64,29 @@ export const handleWebhook = async (
   if (!libraryName || libraryName.toLowerCase() === 'root') {
     libraryName =
       (await defaultJellyfinClient.getLibraryName(event.seriesId ?? event.itemId)) ?? undefined;
+  }
+
+  // 2b. Explicitly exclude libraries configured/defaulted to be excluded from sync
+  if (libraryName && isExcludedLibrary(libraryName)) {
+    logger.info(
+      `[Webhook] Library "${libraryName}" is explicitly excluded from sync. Skipping event for "${event.name}".`,
+    );
+    return;
+  }
+
+  // Path check fallback if library name could not be resolved from Jellyfin
+  const isExcludedPath =
+    event.path &&
+    (event.path.toLowerCase().includes('/other anime/') ||
+      event.path.toLowerCase().includes('/other-anime/') ||
+      event.path.toLowerCase().includes('/other anime movies/') ||
+      event.path.toLowerCase().includes('/other-anime-movies/'));
+
+  if (isExcludedPath) {
+    logger.info(
+      `[Webhook] Item path "${event.path}" belongs to an excluded library. Skipping event for "${event.name}".`,
+    );
+    return;
   }
 
   // Pre-fetch provider IDs from Jellyfin API if missing from webhook body
