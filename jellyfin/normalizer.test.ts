@@ -165,4 +165,25 @@ describe('Jellyfin Webhook Normalizer', () => {
     expect(event.seriesProviderIds.tvdb).toBe('393199');
     expect(event.seriesProviderIds.tmdb).toBe('114410');
   });
+
+  test('should normalize Season itemType and retain series info', () => {
+    const raw = {
+      NotificationType: 'ItemAdded',
+      ItemType: 'Season',
+      ItemId: 'jf-season-guid',
+      SeriesId: 'jf-series-guid',
+      Name: 'Season 1',
+      SeriesName: 'Chainsaw Man',
+      LibraryName: 'Anime',
+      ProviderIds: { Tvdb: '2229470' },
+      Series_Provider_tvdb: '393199',
+    };
+
+    const event = normalizeJellyfinWebhook(raw);
+    expect(event.itemType).toBe('Season');
+    expect(event.itemId).toBe('jf-season-guid');
+    expect(event.seriesId).toBe('jf-series-guid');
+    expect(event.providerIds.tvdb).toBe('2229470');
+    expect(event.seriesProviderIds.tvdb).toBe('393199');
+  });
 });

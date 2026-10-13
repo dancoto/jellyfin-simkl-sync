@@ -96,11 +96,20 @@ export const handleWebhook = async (
   // 2. Handle ItemAdded: Continuous Sync (Server-level event, no user scrobbler token required)
   const isItemAdded = (event.notificationType ?? '').toLowerCase() === 'itemadded';
   if (isItemAdded) {
+    // Only Episodes, Series, and Movies can be synced into the catalog.
+    // Explicitly ignore Seasons, Folders, Collections, etc.
+    if (event.itemType !== 'Episode' && event.itemType !== 'Series' && event.itemType !== 'Movie') {
+      logger.debug(
+        `[Webhook] ItemAdded received for non-catalogable itemType "${event.itemType}" ("${event.name}"). Skipping continuous sync.`,
+      );
+      return;
+    }
+
     if (isAnime) {
       const tvdbId =
         event.itemType === 'Movie'
           ? event.providerIds.tvdb
-          : (event.seriesProviderIds.tvdb ?? event.providerIds.tvdb);
+          : (event.seriesProviderIds.tvdb ?? (event.itemType === 'Series' ? event.providerIds.tvdb : undefined));
       const jellyfinSeriesId =
         event.itemType === 'Episode' ? event.seriesId : event.itemId;
       const seriesTitle = event.seriesName ?? event.name;

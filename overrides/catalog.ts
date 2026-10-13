@@ -56,8 +56,28 @@ export interface CatalogSyncOptions {
   pruneDeletedOverrides?: boolean;
 }
 
+export const CATALOG_FILE_NAME = 'anime-catalog.json';
+
 export const getCatalogFilePath = (customPath?: string): string => {
-  return customPath ? resolve(customPath) : resolve('data/anime-catalog.json');
+  if (customPath) {
+    return resolve(customPath);
+  }
+  const inConfigData = resolve('/config/data', CATALOG_FILE_NAME);
+  if (existsSync(inConfigData)) {
+    return inConfigData;
+  }
+  const inConfig = resolve('/config', CATALOG_FILE_NAME);
+  if (existsSync(inConfig)) {
+    return inConfig;
+  }
+  const inLocalData = resolve('data', CATALOG_FILE_NAME);
+  if (existsSync(inLocalData)) {
+    return inLocalData;
+  }
+  if (existsSync('/config/config.toml')) {
+    return inConfig;
+  }
+  return inLocalData;
 };
 
 /**
@@ -420,18 +440,22 @@ export interface SeriesSyncSummary {
   prunedOverridesCount: number;
 }
 
+let catalogSyncMutex: Promise<any> = Promise.resolve();
+
 /**
  * Scans a single anime series or movie from Jellyfin and updates it in the catalog.
  * Optionally prunes any orphaned overrides for deleted episodes.
+ * Serialized via catalogSyncMutex to prevent concurrent file overwrite race conditions.
  */
-export const syncJellyfinSeries = async (
+export const syncJellyfinSeries = (
   tvdbId: string,
   options?: SeriesSyncOptions,
 ): Promise<SeriesSyncSummary> => {
-  const jellyfinConfig = appConfig.jellyfin;
-  if (!jellyfinConfig?.url || !jellyfinConfig?.token) {
-    throw new Error('Jellyfin configuration (url, token) is required for syncing series.');
-  }
+  const execute = async (): Promise<SeriesSyncSummary> => {
+    const jellyfinConfig = appConfig.jellyfin;
+    if (!jellyfinConfig?.url || !jellyfinConfig?.token) {
+      throw new Error('Jellyfin configuration (url, token) is required for syncing series.');
+    }
 
   const headers = {
     Authorization: `MediaBrowser Token="${jellyfinConfig.token}"`,
@@ -646,12 +670,17 @@ export const syncJellyfinSeries = async (
       (prunedOverridesCount > 0 ? ` (pruned ${prunedOverridesCount} deleted overrides)` : ''),
   );
 
-  return {
-    tvdbId: effectiveTvdbId,
-    title: show.title,
-    show,
-    deleted: false,
-    totalEpisodes,
-    prunedOverridesCount,
+    return {
+      tvdbId: effectiveTvdbId,
+      title: show.title,
+      show,
+      deleted: false,
+      totalEpisodes,
+      prunedOverridesCount,
+    };
   };
+
+  const next = catalogSyncMutex.then(execute, execute);
+  catalogSyncMutex = next;
+  return next;
 };

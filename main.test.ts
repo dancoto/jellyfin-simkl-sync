@@ -1436,5 +1436,25 @@ describe('Main Webhook Handler', () => {
       expect(getPendingSeriesSyncCount()).toBe(0);
       expect(syncMock).not.toHaveBeenCalled();
     });
+
+    test('should ignore ItemAdded for Season items to avoid corrupt sync with 0 episodes', async () => {
+      const syncMock = mock(async () => ({}));
+      setSeriesSyncRunner(syncMock as any);
+
+      await handleWebhook({
+        NotificationType: 'ItemAdded',
+        ItemType: 'Season',
+        Name: 'Season 1',
+        SeriesName: 'Chainsaw Man',
+        SeriesId: 'jf-series-guid',
+        ItemId: 'jf-season-guid',
+        LibraryName: 'Anime Shows',
+        Provider_tvdb: '2229470',
+        Series_Provider_tvdb: '393199',
+      });
+
+      expect(getPendingSeriesSyncCount()).toBe(0);
+      expect(syncMock).not.toHaveBeenCalled();
+    });
   });
 });

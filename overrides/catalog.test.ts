@@ -1,6 +1,7 @@
 import { existsSync, unlinkSync } from 'node:fs';
 import { afterEach, beforeEach, describe, expect, mock, test } from 'bun:test';
 import {
+  getCatalogFilePath,
   loadCatalog,
   pruneSparseOverrides,
   saveCatalog,
@@ -325,5 +326,11 @@ describe('Jellyfin Anime Catalog & Sparse Overrides Pruner', () => {
 
     const loaded = loadCatalog(tempCatalogPath);
     expect(loaded.shows['82310']).toBeDefined();
+  });
+
+  test('getCatalogFilePath should return customPath when provided or resolve default location', () => {
+    expect(getCatalogFilePath('/custom/path/catalog.json')).toBe('/custom/path/catalog.json');
+    const defaultPath = getCatalogFilePath();
+    expect(defaultPath.endsWith('anime-catalog.json')).toBe(true);
   });
 });
