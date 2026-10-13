@@ -31,6 +31,8 @@ interface MissingEpisodeEntry {
   status: 'missing_anidb' | 'missing_anilist' | 'missing_tvdb';
   resolvedAniDbId?: string;
   resolvedAniDbEpisode?: number;
+  resolvedAniListId?: number;
+  resolvedAniListEpisode?: number;
 }
 
 interface SeriesSummary {
@@ -274,8 +276,10 @@ export const runAudit = async () => {
           episodeTvdbId: epProv.tvdb,
           episodeTmdbId: epProv.tmdb,
           status: !hasAniDb ? 'missing_anidb' : 'missing_anilist',
-          resolvedAniDbId: resolved?.animeId,
+          resolvedAniDbId: resolved?.animeId || undefined,
           resolvedAniDbEpisode: resolved?.episodeNumber,
+          resolvedAniListId: resolved?.anilist?.mediaId,
+          resolvedAniListEpisode: resolved?.anilist?.episodeNumber,
         });
       }
     }
@@ -299,9 +303,11 @@ export const runAudit = async () => {
   let missingTvdbCount = 0;
 
   for (const ep of unresolvedEpisodes) {
-    if (ep.status === 'missing_anidb') missingAniDbCount++;
-    else if (ep.status === 'missing_anilist') missingAniListCount++;
-    else if (ep.status === 'missing_tvdb') missingTvdbCount++;
+    const hasAniDb = Boolean(ep.resolvedAniDbId);
+    const hasAniList = Boolean(ep.resolvedAniListId);
+    if (!hasAniDb) missingAniDbCount++;
+    if (!hasAniList) missingAniListCount++;
+    if (ep.status === 'missing_tvdb') missingTvdbCount++;
 
     let group = seriesGroups.get(ep.seriesName);
     if (!group) {
@@ -380,8 +386,9 @@ export const runAudit = async () => {
             name: ep.episodeName,
             anidbId: ep.resolvedAniDbId ?? null,
             anidbEpisode: ep.resolvedAniDbEpisode ?? (ep.resolvedAniDbId ? ep.episodeNumber : null),
-            anilistId: null,
-            anilistEpisode: null,
+            anilistId: ep.resolvedAniListId ?? null,
+            anilistEpisode:
+              ep.resolvedAniListEpisode ?? (ep.resolvedAniListId ? ep.episodeNumber : null),
           };
         }
         seasonsObj[String(seasonNum)] = { episodes: episodesObj };

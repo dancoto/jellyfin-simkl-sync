@@ -240,6 +240,31 @@ describe('AniBridge Index & Resolver', () => {
       source: 'anibridge',
     });
   });
+
+  test('should resolve AniList mapping directly from tvdb_show node in AniBridge', () => {
+    const aniBridge = AniBridgeIndex.parse({
+      'anidb:6793:R': {
+        'tvdb_show:82807:s2': { '1-13': '1-13' },
+        'anilist:9355': { '1': '1' }, // Faulty special mapping in AniDB node
+      },
+      'tvdb_show:82807:s2': {
+        'anidb:6793:R': { '1-13': '1-13' },
+        'anilist:5277': { '1-13': '1-13' }, // Correct season mapping on TVDB node
+      },
+    });
+    const resolver = new AnimeResolver();
+    resolver.setIndices(aniBridge);
+
+    const ep1 = resolver.resolveEpisode({ tvdbId: '82807' }, 2, 1);
+    expect(ep1?.animeId).toBe('6793');
+    expect(ep1?.anilist?.mediaId).toBe(5277);
+    expect(ep1?.anilist?.episodeNumber).toBe(1);
+
+    const ep2 = resolver.resolveEpisode({ tvdbId: '82807' }, 2, 2);
+    expect(ep2?.animeId).toBe('6793');
+    expect(ep2?.anilist?.mediaId).toBe(5277);
+    expect(ep2?.anilist?.episodeNumber).toBe(2);
+  });
 });
 
 describe('Overrides & Fallback Precedence', () => {

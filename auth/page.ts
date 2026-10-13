@@ -111,6 +111,10 @@ export const renderAuthHtml = (options: PageOptions): string => {
     <header>
       <h1><span>🎬</span> Jellyfin Tracker Sync</h1>
       <p>Authenticate and link Jellyfin user accounts to Simkl and AniList</p>
+      <nav style="display: flex; justify-content: center; gap: 0.75rem; margin-top: 0.75rem;">
+        <a href="/" class="btn btn-primary btn-sm"><span>👥</span> User Accounts</a>
+        <a href="/overrides" class="btn btn-secondary btn-sm"><span>🌸</span> Mapping Overrides</a>
+      </nav>
     </header>
 
     ${

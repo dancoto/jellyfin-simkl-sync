@@ -1,5 +1,6 @@
 import { defaultAnimeResolver } from './anime';
 import { renderAuthHtml } from './auth/page';
+import { handleGetOverrides, handleOverridesPage, handleSaveOverrides } from './overrides/api';
 import { defaultJellyfinClient, type RawJellyfinPayload } from './jellyfin';
 import { handleWebhook } from './main';
 import { appConfig, saveAniListUserToken, saveUserToken } from './shared/config';
@@ -126,6 +127,13 @@ const server = Bun.serve({
     },
     '/auth': {
       GET: handleAuthPage,
+    },
+    '/overrides': {
+      GET: handleOverridesPage,
+    },
+    '/api/overrides': {
+      GET: handleGetOverrides,
+      POST: handleSaveOverrides,
     },
     '/api/users': {
       GET: async () => {

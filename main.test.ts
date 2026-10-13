@@ -1,14 +1,20 @@
+import { existsSync, unlinkSync } from 'fs';
 import { afterEach, beforeEach, describe, expect, mock, test } from 'bun:test';
 import { AniBridgeIndex, defaultAnimeResolver } from './anime';
+import { TvdbOverridesIndex } from './anime/tvdb-overrides';
 import { defaultJellyfinClient } from './jellyfin';
-import { handleWebhook } from './main';
+import { clearNotificationCooldowns, handleWebhook } from './main';
 import { appConfig } from './shared/config';
 
 describe('Main Webhook Handler', () => {
   let fetchMock: any;
   let originalConfig: any;
+  let tempOverridesPath: string;
 
   beforeEach(() => {
+    tempOverridesPath = `/tmp/test-main-overrides-${Date.now()}-${Math.random().toString(36).slice(2)}.json`;
+    defaultAnimeResolver.setTvdbOverridesPath(tempOverridesPath);
+    clearNotificationCooldowns();
     originalConfig = JSON.parse(JSON.stringify(appConfig));
     appConfig.jellyfin = { url: 'http://jellyfin-mock:8096', token: 'mock-jf-token' };
     appConfig.simkl = {
@@ -29,9 +35,10 @@ describe('Main Webhook Handler', () => {
         'tvdb_show:267440:s1': { '1-25': '1-25' },
         'anilist:16498': { '1-25': '1-25' },
       },
-      // Test Movie: TMDB 54321 -> AniDB 54321
+      // Test Movie: TMDB 54321 -> AniDB 54321 -> AniList 54321
       'anidb:54321:R': {
         'tmdb_movie:54321': { '1': '1' },
+        'anilist:54321': { '1': '1' },
       },
       // Valid Movie: TMDB 12345 -> AniDB 12345 -> AniList 164
       'anidb:12345:R': {
@@ -164,6 +171,10 @@ describe('Main Webhook Handler', () => {
   });
 
   afterEach(() => {
+    defaultAnimeResolver.setTvdbOverridesPath(undefined);
+    if (existsSync(tempOverridesPath)) {
+      unlinkSync(tempOverridesPath);
+    }
     Object.assign(appConfig, originalConfig);
     mock.restore();
   });
@@ -358,10 +369,14 @@ describe('Main Webhook Handler', () => {
 
     expect(fetchMock).toHaveBeenCalled();
     const calls = fetchMock.mock.calls;
-    expect(calls.length).toBe(1);
+    const simklCalls = calls.filter((c: any) => c[0].toString().includes('api.simkl.com'));
+    expect(simklCalls.length).toBe(1);
 
-    expect(calls[0][0].toString()).toContain('api.simkl.com/sync/history');
-    const simklBody = JSON.parse(calls[0][1].body);
+    const ntfyCalls = calls.filter((c: any) => c[0].toString().includes('http://ntfy-mock'));
+    expect(ntfyCalls.length).toBe(1);
+    expect(JSON.parse(ntfyCalls[0][1].body).title).toContain('Missing Anime Mapping');
+
+    const simklBody = JSON.parse(simklCalls[0][1].body);
     expect(simklBody.shows[0].title).toBe('Unmapped Anime');
     expect(simklBody.shows[0].ids.tvdb).toBe('999999');
     expect(simklBody.shows[0].ids.tmdb).toBe('888888');
@@ -387,7 +402,16 @@ describe('Main Webhook Handler', () => {
 
     await handleWebhook(payload);
 
-    expect(fetchMock).not.toHaveBeenCalled();
+    const simklCalls = fetchMock.mock.calls.filter((c: any) =>
+      c[0].toString().includes('api.simkl.com'),
+    );
+    expect(simklCalls.length).toBe(0);
+
+    const ntfyCalls = fetchMock.mock.calls.filter((c: any) =>
+      c[0].toString().includes('http://ntfy-mock'),
+    );
+    expect(ntfyCalls.length).toBe(1);
+    expect(JSON.parse(ntfyCalls[0][1].body).title).toContain('Missing Anime Mapping');
   });
 
   test('should debounce and batch multiple rapid episode completions of a season into a single Simkl request', async () => {
@@ -452,10 +476,14 @@ describe('Main Webhook Handler', () => {
 
     expect(fetchMock).toHaveBeenCalled();
     const calls = fetchMock.mock.calls;
-    expect(calls.length).toBe(1);
+    const simklCalls = calls.filter((c: any) => c[0].toString().includes('api.simkl.com'));
+    expect(simklCalls.length).toBe(1);
 
-    expect(calls[0][0].toString()).toContain('api.simkl.com/sync/history');
-    const simklBody = JSON.parse(calls[0][1].body);
+    const ntfyCalls = calls.filter((c: any) => c[0].toString().includes('http://ntfy-mock'));
+    expect(ntfyCalls.length).toBe(1);
+    expect(JSON.parse(ntfyCalls[0][1].body).title).toContain('Missing Anime Movie Mapping');
+
+    const simklBody = JSON.parse(simklCalls[0][1].body);
     expect(simklBody.movies).toBeDefined();
     expect(simklBody.movies.length).toBe(1);
     expect(simklBody.movies[0].title).toBe('Voltage Fighter Gowcaizer');
@@ -815,5 +843,320 @@ describe('Main Webhook Handler', () => {
     expect(simklCalls.length).toBe(1);
     const simklBody = JSON.parse(simklCalls[0][1].body);
     expect(simklBody.shows[0].ids.anidb).toBe('9541');
+  });
+
+  test('should fall back to standard TVDB episode scrobble for Simkl when anime has no AniDB mapping, while AniList scrobbles if mapped', async () => {
+    appConfig.simkl.users = { 'test-user': 'mock-simkl-user-token' };
+    appConfig.anilist = {
+      users: { 'test-user': 'mock-anilist-user-token' },
+    };
+
+    // TVDB override where anidbId is null (or unmapped) but anilistId is 16498
+    const tvdbOverrides = TvdbOverridesIndex.parse({
+      '88888': {
+        title: 'Anime Without AniDB',
+        seasons: {
+          '1': {
+            episodes: {
+              '1': {
+                name: 'Fallback Episode 1',
+                anidbId: null,
+                anilistId: 16498,
+              },
+            },
+          },
+        },
+      },
+    });
+    defaultAnimeResolver.setIndices(null, null, null, tvdbOverrides);
+
+    const payload: any = {
+      NotificationUsername: 'test-user',
+      ItemType: 'Episode',
+      Name: 'Fallback Episode 1',
+      SeriesName: 'Anime Without AniDB',
+      LibraryName: 'Anime Shows',
+      SeasonNumber: 1,
+      EpisodeNumber: 1,
+      NotificationType: 'PlaybackStop',
+      RunTimeTicks: 1000,
+      PlaybackPositionTicks: 900,
+      Series_Provider_tvdb: '88888',
+      Series_Provider_tmdb: '55555',
+    };
+
+    await handleWebhook(payload, { debounceMs: 50 });
+    await new Promise((resolve) => setTimeout(resolve, 100));
+
+    // Simkl receives standard TV show scrobble with TVDB ID
+    const simklCalls = fetchMock.mock.calls.filter((c: any) =>
+      c[0].toString().includes('api.simkl.com'),
+    );
+    expect(simklCalls.length).toBe(1);
+    const simklBody = JSON.parse(simklCalls[0][1].body);
+    expect(simklBody.shows[0].ids.tvdb).toBe('88888');
+    expect(simklBody.shows[0].ids.anidb).toBeUndefined();
+
+    // AniList still receives scrobble with mediaId 16498
+    const anilistCalls = fetchMock.mock.calls.filter(
+      (c: any) =>
+        c[0].toString().includes('graphql.anilist.co') &&
+        c[1]?.body?.includes('SaveMediaListEntry'),
+    );
+    expect(anilistCalls.length).toBe(1);
+    const anilistBody = JSON.parse(anilistCalls[0][1].body);
+    expect(anilistBody.variables.mediaId).toBe(16498);
+  });
+
+  test('should fall back to standard movie pipeline for Simkl when anime movie has no AniDB mapping', async () => {
+    appConfig.simkl.users = { 'test-user': 'mock-simkl-user-token' };
+    appConfig.anilist = {
+      users: { 'test-user': 'mock-anilist-user-token' },
+    };
+
+    defaultAnimeResolver.setIndices(null, null, null, null);
+
+    const payload: any = {
+      NotificationUsername: 'test-user',
+      ItemType: 'Movie',
+      Name: 'Unmapped Anime Movie',
+      LibraryName: 'Anime Movies',
+      NotificationType: 'PlaybackStop',
+      RunTimeTicks: 1000,
+      PlaybackPositionTicks: 900,
+      Provider_tmdb: '998877',
+    };
+
+    await handleWebhook(payload, { debounceMs: 50 });
+    await new Promise((resolve) => setTimeout(resolve, 100));
+
+    // Simkl receives standard movie scrobble with TMDB ID
+    const simklCalls = fetchMock.mock.calls.filter((c: any) =>
+      c[0].toString().includes('api.simkl.com'),
+    );
+    expect(simklCalls.length).toBe(1);
+    const simklBody = JSON.parse(simklCalls[0][1].body);
+    expect(simklBody.movies[0].ids.tmdb).toBe('998877');
+    expect(simklBody.movies[0].ids.anidb).toBeUndefined();
+
+    // AniList has no mapping, so should not be called
+    const anilistCalls = fetchMock.mock.calls.filter((c: any) =>
+      c[0].toString().includes('graphql.anilist.co'),
+    );
+    expect(anilistCalls.length).toBe(0);
+  });
+
+  test('should send ntfy notification and automatically add anime to mapping overrides when missing mappings', async () => {
+    appConfig.simkl.users = { 'test-user': 'mock-simkl-user-token' };
+    appConfig.anilist = { users: { 'test-user': 'mock-anilist-user-token' } };
+
+    const tvdbId = '776655';
+    // Ensure show is not in overrides index initially
+    expect(defaultAnimeResolver.hasTvdbShow(tvdbId)).toBe(false);
+
+    const payload: any = {
+      NotificationUsername: 'test-user',
+      ItemType: 'Episode',
+      Name: 'Episode 1',
+      SeriesName: 'Unmapped Catch Anime',
+      LibraryName: 'Anime Shows',
+      SeasonNumber: 1,
+      EpisodeNumber: 1,
+      NotificationType: 'PlaybackStop',
+      RunTimeTicks: 1000,
+      PlaybackPositionTicks: 900,
+      Series_Provider_tvdb: tvdbId,
+      Series_Provider_tmdb: '112233',
+    };
+
+    await handleWebhook(payload, { debounceMs: 50 });
+    await new Promise((resolve) => setTimeout(resolve, 100));
+
+    // Ntfy notification was sent
+    const ntfyCalls = fetchMock.mock.calls.filter((c: any) =>
+      c[0].toString().includes('http://ntfy-mock'),
+    );
+    expect(ntfyCalls.length).toBe(1);
+    const ntfyBody = JSON.parse(ntfyCalls[0][1].body);
+    expect(ntfyBody.title).toBe('Missing Anime Mapping: Unmapped Catch Anime');
+    expect(ntfyBody.message).toContain('Show: Unmapped Catch Anime');
+    expect(ntfyBody.message).toContain('Episode: S1E1');
+    expect(ntfyBody.message).toContain('TVDB: 776655');
+    expect(ntfyBody.message).toContain('Missing: AniDB and AniList');
+    expect(ntfyBody.message).toContain('Added to mapping-overrides.json');
+
+    // And show was automatically added to resolver overrides!
+    expect(defaultAnimeResolver.hasTvdbShow(tvdbId)).toBe(true);
+  });
+
+  test('should respect notification cooldown and avoid sending duplicate notifications for the same show', async () => {
+    appConfig.simkl.users = { 'test-user': 'mock-simkl-user-token' };
+    appConfig.anilist = { users: { 'test-user': 'mock-anilist-user-token' } };
+
+    const payloadEp1: any = {
+      NotificationUsername: 'test-user',
+      ItemType: 'Episode',
+      Name: 'Episode 1',
+      SeriesName: 'Cooldown Anime',
+      LibraryName: 'Anime Shows',
+      SeasonNumber: 1,
+      EpisodeNumber: 1,
+      NotificationType: 'PlaybackStop',
+      RunTimeTicks: 1000,
+      PlaybackPositionTicks: 900,
+      Series_Provider_tvdb: '887766',
+    };
+
+    const payloadEp2: any = {
+      ...payloadEp1,
+      Name: 'Episode 2',
+      EpisodeNumber: 2,
+    };
+
+    // First episode sends notification
+    await handleWebhook(payloadEp1, { debounceMs: 50 });
+    await new Promise((resolve) => setTimeout(resolve, 100));
+
+    let ntfyCalls = fetchMock.mock.calls.filter((c: any) =>
+      c[0].toString().includes('http://ntfy-mock'),
+    );
+    expect(ntfyCalls.length).toBe(1);
+
+    // Second episode within cooldown does NOT send another notification
+    await handleWebhook(payloadEp2, { debounceMs: 50 });
+    await new Promise((resolve) => setTimeout(resolve, 100));
+
+    ntfyCalls = fetchMock.mock.calls.filter((c: any) =>
+      c[0].toString().includes('http://ntfy-mock'),
+    );
+    expect(ntfyCalls.length).toBe(1);
+
+    // Clearing cooldown allows notification again
+    clearNotificationCooldowns();
+    await handleWebhook(payloadEp2, { debounceMs: 50 });
+    await new Promise((resolve) => setTimeout(resolve, 100));
+
+    ntfyCalls = fetchMock.mock.calls.filter((c: any) =>
+      c[0].toString().includes('http://ntfy-mock'),
+    );
+    expect(ntfyCalls.length).toBe(2);
+  });
+
+  test('should trigger ntfy notification and add anime to mapping overrides on PlaybackStart without scrobbling', async () => {
+    appConfig.simkl.users = { 'test-user': 'mock-simkl-user-token' };
+    appConfig.anilist = { users: { 'test-user': 'mock-anilist-user-token' } };
+
+    const tvdbId = '665544';
+    expect(defaultAnimeResolver.hasTvdbShow(tvdbId)).toBe(false);
+
+    const payload: any = {
+      NotificationUsername: 'test-user',
+      ItemType: 'Episode',
+      Name: 'Episode 1',
+      SeriesName: 'Unmapped PlaybackStart Anime',
+      LibraryName: 'Anime Shows',
+      SeasonNumber: 1,
+      EpisodeNumber: 1,
+      NotificationType: 'PlaybackStart',
+      RunTimeTicks: 10000000,
+      PlaybackPositionTicks: 0,
+      Series_Provider_tvdb: tvdbId,
+    };
+
+    await handleWebhook(payload);
+
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    // Ntfy notification was sent
+    const ntfyCalls = fetchMock.mock.calls.filter((c: any) =>
+      c[0].toString().includes('http://ntfy-mock'),
+    );
+    expect(ntfyCalls.length).toBe(1);
+    const ntfyBody = JSON.parse(ntfyCalls[0][1].body);
+    expect(ntfyBody.title).toBe('Missing Anime Mapping: Unmapped PlaybackStart Anime');
+    expect(ntfyBody.message).toContain('Show: Unmapped PlaybackStart Anime');
+    expect(ntfyBody.message).toContain('TVDB: 665544');
+    expect(ntfyBody.message).toContain('Added to mapping-overrides.json');
+
+    // Show added to resolver overrides
+    expect(defaultAnimeResolver.hasTvdbShow(tvdbId)).toBe(true);
+
+    // Absolutely NO scrobble requests were sent to Simkl or AniList
+    const simklCalls = fetchMock.mock.calls.filter((c: any) =>
+      c[0].toString().includes('api.simkl.com'),
+    );
+    expect(simklCalls.length).toBe(0);
+
+    const anilistCalls = fetchMock.mock.calls.filter((c: any) =>
+      c[0].toString().includes('graphql.anilist.co'),
+    );
+    expect(anilistCalls.length).toBe(0);
+  });
+
+  test('should trigger ntfy notification and add anime movie to mapping overrides on PlaybackStart without scrobbling', async () => {
+    appConfig.simkl.users = { 'test-user': 'mock-simkl-user-token' };
+    appConfig.anilist = { users: { 'test-user': 'mock-anilist-user-token' } };
+
+    const tvdbId = '554433';
+    expect(defaultAnimeResolver.hasTvdbShow(tvdbId)).toBe(false);
+
+    const payload: any = {
+      NotificationUsername: 'test-user',
+      ItemType: 'Movie',
+      Name: 'Unmapped PlaybackStart Movie',
+      LibraryName: 'Anime Movies',
+      NotificationType: 'PlaybackStart',
+      RunTimeTicks: 10000000,
+      PlaybackPositionTicks: 0,
+      Provider_tvdb: tvdbId,
+      Provider_tmdb: '332211',
+    };
+
+    await handleWebhook(payload);
+
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    const ntfyCalls = fetchMock.mock.calls.filter((c: any) =>
+      c[0].toString().includes('http://ntfy-mock'),
+    );
+    expect(ntfyCalls.length).toBe(1);
+    const ntfyBody = JSON.parse(ntfyCalls[0][1].body);
+    expect(ntfyBody.title).toBe('Missing Anime Movie Mapping: Unmapped PlaybackStart Movie');
+    expect(ntfyBody.message).toContain('Movie: Unmapped PlaybackStart Movie');
+    expect(ntfyBody.message).toContain('TVDB: 554433');
+    expect(ntfyBody.message).toContain('Added to mapping-overrides.json');
+
+    expect(defaultAnimeResolver.hasTvdbShow(tvdbId)).toBe(true);
+
+    const simklCalls = fetchMock.mock.calls.filter((c: any) =>
+      c[0].toString().includes('api.simkl.com'),
+    );
+    expect(simklCalls.length).toBe(0);
+  });
+
+  test('should not trigger ntfy notification on PlaybackStart if anime is already mapped', async () => {
+    appConfig.simkl.users = { 'test-user': 'mock-simkl-user-token' };
+    appConfig.anilist = { users: { 'test-user': 'mock-anilist-user-token' } };
+
+    // TVDB 267440 is Attack on Titan which is mapped in testAniBridge
+    const payload: any = {
+      NotificationUsername: 'test-user',
+      ItemType: 'Episode',
+      Name: 'To You, in 2000 Years',
+      SeriesName: 'Attack on Titan',
+      LibraryName: 'Anime Shows',
+      SeasonNumber: 1,
+      EpisodeNumber: 1,
+      NotificationType: 'PlaybackStart',
+      RunTimeTicks: 10000000,
+      PlaybackPositionTicks: 0,
+      Series_Provider_tvdb: '267440',
+    };
+
+    await handleWebhook(payload);
+
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });

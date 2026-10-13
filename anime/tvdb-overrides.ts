@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 export const TVDB_OVERRIDES_FILE_NAME = 'mapping-overrides.json';
@@ -37,6 +37,26 @@ export interface TvdbResolvedOverride {
   anilistId?: number;
   anilistEpisode?: number;
   isSpecial?: boolean;
+}
+
+export interface EnsureShowOverrideParams {
+  tvdbId: string;
+  title: string;
+  tmdbId?: string;
+  seasonNumber?: number;
+  episodeNumber?: number;
+  episodeName?: string;
+  anidbId?: string | number | null;
+  anidbEpisode?: number | null;
+  anilistId?: string | number | null;
+  anilistEpisode?: number | null;
+}
+
+export interface EnsureShowOverrideResult {
+  added: boolean;
+  reason: 'show_added' | 'season_added' | 'episode_added' | 'already_exists' | 'missing_tvdb_id';
+  filePath?: string;
+  data?: RawTvdbOverrides;
 }
 
 export class TvdbOverridesIndex {
@@ -78,6 +98,112 @@ export class TvdbOverridesIndex {
       }
     }
     return index;
+  }
+
+  public hasShow(tvdbId: string | undefined): boolean {
+    if (!tvdbId) {
+      return false;
+    }
+    return this.shows.has(String(tvdbId).trim());
+  }
+
+  public static ensureShowInOverrides(
+    params: EnsureShowOverrideParams,
+    customPath?: string,
+  ): EnsureShowOverrideResult {
+    if (!params.tvdbId) {
+      return { added: false, reason: 'missing_tvdb_id' };
+    }
+
+    const filePath = TvdbOverridesIndex.getFilePath(customPath);
+    let data: RawTvdbOverrides = {};
+
+    if (existsSync(filePath)) {
+      try {
+        const content = readFileSync(filePath, 'utf-8');
+        data = JSON.parse(content) as RawTvdbOverrides;
+      } catch (err) {
+        console.error(`Failed to parse overrides file at ${filePath}:`, err);
+        data = {};
+      }
+    }
+
+    const showKey = String(params.tvdbId).trim();
+    let show = data[showKey];
+    let added = false;
+    let reason: EnsureShowOverrideResult['reason'] = 'already_exists';
+
+    if (!show) {
+      show = {
+        title: params.title,
+        tmdbId: params.tmdbId,
+        seasons: {},
+      };
+      data[showKey] = show;
+      added = true;
+      reason = 'show_added';
+    } else {
+      if (!show.title && params.title) {
+        show.title = params.title;
+      }
+      if (!show.tmdbId && params.tmdbId) {
+        show.tmdbId = params.tmdbId;
+      }
+      if (!show.seasons) {
+        show.seasons = {};
+      }
+    }
+
+    const seasons = show.seasons ?? {};
+    show.seasons = seasons;
+
+    const seasonNum = params.seasonNumber ?? 1;
+    const epNum = params.episodeNumber ?? 1;
+    const seasonKey = String(seasonNum);
+    let season = seasons[seasonKey] ?? seasons[seasonNum];
+
+    if (!season) {
+      season = { episodes: {} };
+      seasons[seasonKey] = season;
+      if (!added) {
+        added = true;
+        reason = 'season_added';
+      }
+    }
+
+    if (!season.episodes) {
+      season.episodes = {};
+    }
+    const episodes = season.episodes;
+
+    const epKey = String(epNum);
+    if (!episodes[epKey]) {
+      episodes[epKey] = {
+        name: params.episodeName ?? `Episode ${epNum}`,
+        anidbId: params.anidbId ?? null,
+        anidbEpisode: params.anidbEpisode ?? (params.anidbId ? epNum : null),
+        anilistId: params.anilistId ?? null,
+        anilistEpisode: params.anilistEpisode ?? (params.anilistId ? epNum : null),
+      };
+      if (!added) {
+        added = true;
+        reason = 'episode_added';
+      }
+    }
+
+    if (added) {
+      try {
+        writeFileSync(filePath, JSON.stringify(data, null, 2), 'utf-8');
+        console.log(
+          `Updated TVDB mapping overrides at ${filePath} (${reason} for TVDB ${params.tvdbId})`,
+        );
+      } catch (err) {
+        console.error(`Failed to write TVDB overrides to ${filePath}:`, err);
+        return { added: false, reason: 'already_exists', filePath, data };
+      }
+    }
+
+    return { added, reason, filePath, data };
   }
 
   public getEpisodeOverride(

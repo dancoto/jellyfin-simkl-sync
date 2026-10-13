@@ -8,6 +8,7 @@ import {
   type RawJellyfinPayload,
 } from './jellyfin';
 import { logger } from './shared/logger';
+import { sendNotification } from './ntfy';
 import { getOrRefreshUserToken } from './simkl/auth';
 import { enqueueScrobble } from './simkl/batcher';
 
@@ -57,17 +58,7 @@ export const handleWebhook = async (
     return;
   }
 
-  // 2. Only scrobble on completion (>= 80% progress or marked played)
-  if (!event.isCompleted) {
-    logger.debug(
-      `[Webhook] Event "${event.notificationType}" does not meet completion threshold (progress: ${Math.round(event.progressPercentage)}% < 80%, played: ${Boolean(event.isCompleted)}). No scrobble queued.`,
-    );
-    return;
-  }
-
-  logger.info(`Processing playback completion for user "${event.username}": ${event.name}`);
-
-  // 3. Determine library name and ensure provider IDs are loaded before anime fallback check
+  // 2. Determine library name and ensure provider IDs are loaded before anime fallback check
   let libraryName = event.libraryName;
   if (!libraryName || libraryName.toLowerCase() === 'root') {
     libraryName =
@@ -104,6 +95,29 @@ export const handleWebhook = async (
 
   const isAnime = (libraryName && isAnimeLibrary(libraryName)) || checkIfAnimeFallback(event);
 
+  // 3. Handle PlaybackStart: immediately catch and alert on missing anime mappings
+  const isPlaybackStart = (event.notificationType ?? '').toLowerCase() === 'playbackstart';
+  if (isPlaybackStart) {
+    if (isAnime) {
+      logger.info(
+        `[Webhook] PlaybackStart received for anime "${event.seriesName ?? event.name}". Checking for missing mappings...`,
+      );
+      checkAnimeMissingMappings(event);
+    }
+    logger.debug(`[Webhook] PlaybackStart event processed. No scrobble queued.`);
+    return;
+  }
+
+  // 4. Only scrobble on completion (>= 80% progress or marked played)
+  if (!event.isCompleted) {
+    logger.debug(
+      `[Webhook] Event "${event.notificationType}" does not meet completion threshold (progress: ${Math.round(event.progressPercentage)}% < 80%, played: ${Boolean(event.isCompleted)}). No scrobble queued.`,
+    );
+    return;
+  }
+
+  logger.info(`Processing playback completion for user "${event.username}": ${event.name}`);
+
   const routeLabel = isAnime ? 'Anime' : 'Standard/Non-Anime';
   logger.info(`Library: "${libraryName ?? 'Unknown'}" -> Routing to ${routeLabel} pipeline.`);
 
@@ -139,25 +153,43 @@ export const handleWebhook = async (
           ep,
         );
 
+        const hasAniDb = Boolean(resolved?.animeId);
+        const hasAniList = Boolean(resolved?.anilist?.mediaId);
+
+        if (!hasAniDb || !hasAniList) {
+          handleMissingAnimeMapping(
+            event,
+            seriesProviderIds.tvdb,
+            event.seasonNumber,
+            ep,
+            hasAniDb,
+            hasAniList,
+            resolved,
+          );
+        }
+
         if (!resolved) {
           // Edge case: If NOT a special (season !== 0), fallback to standard pipeline
           if (event.seasonNumber !== 0) {
             console.log(
-              `No AniDB mapping found for anime "${event.seriesName ?? event.name}" (S${event.seasonNumber}E${ep}). Falling back to standard non-anime pipeline.`,
+              `No AniDB mapping found for anime "${event.seriesName ?? event.name}" (S${event.seasonNumber}E${ep}). Falling back to standard non-anime pipeline for Simkl.`,
             );
             if (simklToken) {
               await enqueueStandardEpisode(event, simklToken, ep, options);
             }
           } else {
             console.log(
-              `No anime mapping match found for special "${event.seriesName ?? event.name}" (S0E${ep}). Skipping anime scrobble.`,
+              `No anime mapping match found for special "${event.seriesName ?? event.name}" (S0E${ep}). Skipping Simkl anime scrobble.`,
             );
           }
-        } else if (resolved.isSkipped) {
-          logger.info(
-            `[Resolver] Episode "${event.seriesName ?? event.name}" (S${event.seasonNumber}E${ep}) is marked as skipped in overrides. Skipping scrobble.`,
-          );
+
+          if (anilistToken) {
+            logger.info(
+              `[AniList] No matching AniList mapping found for anime "${event.seriesName ?? event.name}". Skipping AniList scrobble.`,
+            );
+          }
         } else {
+          // 1. Simkl scrobbling
           if (resolved.animeId && !resolved.skipAniDb) {
             console.log(
               `Mapped anime "${event.seriesName ?? event.name}" S${event.seasonNumber}E${ep} -> AniDB ${resolved.animeId} Ep ${resolved.episodeNumber} (${resolved.source})`,
@@ -185,8 +217,21 @@ export const handleWebhook = async (
                 );
               }
             }
+          } else if (event.seasonNumber !== 0) {
+            // Fallback for Simkl: No AniDB ID, but regular season -> try standard TVDB/TMDB pipeline
+            console.log(
+              `No AniDB mapping found for anime "${event.seriesName ?? event.name}" (S${event.seasonNumber}E${ep}). Falling back to standard non-anime pipeline for Simkl.`,
+            );
+            if (simklToken) {
+              await enqueueStandardEpisode(event, simklToken, ep, options);
+            }
+          } else {
+            console.log(
+              `No AniDB mapping found for special "${event.seriesName ?? event.name}" (S0E${ep}). Skipping Simkl anime scrobble.`,
+            );
           }
 
+          // 2. AniList scrobbling
           if (anilistToken && !resolved.skipAniList) {
             try {
               if (resolved.anilist) {
@@ -203,7 +248,7 @@ export const handleWebhook = async (
                 );
               } else {
                 logger.info(
-                  `[AniList] No matching AniList mapping found for anime "${event.seriesName ?? event.name}" (AniDB ${resolved.animeId}). Skipping AniList scrobble.`,
+                  `[AniList] No matching AniList mapping found for anime "${event.seriesName ?? event.name}". Skipping AniList scrobble.`,
                 );
               }
             } catch (err) {
@@ -224,23 +269,25 @@ export const handleWebhook = async (
         anilistId: event.providerIds.anilist,
       });
 
-      if (!resolved) {
-        logger.info(
-          `No AniDB mapping found for anime movie "${event.name}". Falling back to standard movie pipeline with TMDB/IMDb/TVDB IDs.`,
-        );
-        if (simklToken) {
-          try {
-            await enqueueStandardMovie(event, simklToken, options);
-          } catch (err) {
-            logger.error(`[Simkl] Failed to enqueue movie "${event.name}":`, err);
-          }
-        }
-      } else {
-        logger.info(
-          `Mapped anime movie "${event.name}" -> AniDB ${resolved.animeId} (${resolved.source})`,
-        );
+      const hasAniDb = Boolean(resolved?.animeId);
+      const hasAniList = Boolean(resolved?.anilist?.mediaId);
 
-        if (simklToken) {
+      if (!hasAniDb || !hasAniList) {
+        handleMissingAnimeMovieMapping(
+          event,
+          event.providerIds.tvdb,
+          hasAniDb,
+          hasAniList,
+          resolved,
+        );
+      }
+
+      // 1. Simkl scrobbling
+      if (simklToken) {
+        if (resolved?.animeId) {
+          logger.info(
+            `Mapped anime movie "${event.name}" -> AniDB ${resolved.animeId} (${resolved.source})`,
+          );
           try {
             await enqueueScrobble(
               event.username,
@@ -258,33 +305,43 @@ export const handleWebhook = async (
               err,
             );
           }
-        }
-
-        if (anilistToken) {
+        } else {
+          logger.info(
+            `No AniDB mapping found for anime movie "${event.name}". Falling back to standard movie pipeline with TMDB/IMDb/TVDB IDs for Simkl.`,
+          );
           try {
-            if (resolved.anilist) {
-              await enqueueAniListScrobble(
-                event.username,
-                anilistToken,
-                {
-                  mediaId: resolved.anilist.mediaId,
-                  episodeNumber: 1,
-                  isMovie: true,
-                  title: event.name,
-                },
-                options,
-              );
-            } else {
-              logger.info(
-                `[AniList] No matching AniList mapping found for anime movie "${event.name}" (AniDB ${resolved.animeId}). Skipping AniList scrobble.`,
-              );
-            }
+            await enqueueStandardMovie(event, simklToken, options);
+          } catch (err) {
+            logger.error(`[Simkl] Failed to enqueue movie "${event.name}":`, err);
+          }
+        }
+      }
+
+      // 2. AniList scrobbling
+      if (anilistToken) {
+        if (resolved?.anilist) {
+          try {
+            await enqueueAniListScrobble(
+              event.username,
+              anilistToken,
+              {
+                mediaId: resolved.anilist.mediaId,
+                episodeNumber: 1,
+                isMovie: true,
+                title: event.name,
+              },
+              options,
+            );
           } catch (err) {
             logger.error(
               `[AniList] Failed to enqueue scrobble for anime movie "${event.name}":`,
               err,
             );
           }
+        } else {
+          logger.info(
+            `[AniList] No matching AniList mapping found for anime movie "${event.name}". Skipping AniList scrobble.`,
+          );
         }
       }
     }
@@ -413,4 +470,186 @@ const checkIfAnimeFallback = (event: ReturnType<typeof normalizeJellyfinWebhook>
     return match !== null;
   }
   return false;
+};
+
+const NOTIFICATION_COOLDOWN_MS = 60 * 60 * 1000; // 1 hour per series
+export const notifiedAnimeCooldown = new Map<string, number>();
+
+export const clearNotificationCooldowns = (): void => {
+  notifiedAnimeCooldown.clear();
+};
+
+const handleMissingAnimeMapping = (
+  event: ReturnType<typeof normalizeJellyfinWebhook>,
+  tvdbId: string | undefined,
+  seasonNumber: number,
+  episodeNumber: number,
+  hasAniDb: boolean,
+  hasAniList: boolean,
+  resolved: ReturnType<typeof defaultAnimeResolver.resolveEpisode>,
+): void => {
+  const missingParts: string[] = [];
+  if (!hasAniDb) missingParts.push('AniDB');
+  if (!hasAniList) missingParts.push('AniList');
+  const missingDesc = missingParts.join(' and ');
+
+  const seriesTitle = event.seriesName ?? event.name;
+  let actionNotice = '';
+
+  if (tvdbId) {
+    const overrideResult = defaultAnimeResolver.ensureShowInOverrides({
+      tvdbId,
+      title: seriesTitle,
+      tmdbId: event.seriesProviderIds?.tmdb ?? event.providerIds?.tmdb,
+      seasonNumber,
+      episodeNumber,
+      episodeName: episodeNumber === event.episodeNumber ? event.name : `Episode ${episodeNumber}`,
+      anidbId: resolved?.animeId || null,
+      anidbEpisode: resolved?.episodeNumber ?? null,
+      anilistId: resolved?.anilist?.mediaId ?? null,
+      anilistEpisode: resolved?.anilist?.episodeNumber ?? null,
+    });
+
+    if (overrideResult.added) {
+      actionNotice = `\nAdded to mapping-overrides.json (${overrideResult.reason.replace('_', ' ')})`;
+      logger.info(
+        `[Overrides] Added unmapped anime "${seriesTitle}" (TVDB ${tvdbId}) to mapping overrides file.`,
+      );
+    } else if (overrideResult.reason === 'already_exists') {
+      actionNotice = '\nAlready in mapping-overrides.json';
+    }
+  } else {
+    logger.warn(
+      `[Overrides] Anime "${seriesTitle}" is missing TVDB ID in Jellyfin. Cannot add to TVDB overrides.`,
+    );
+  }
+
+  const cooldownKey = tvdbId ?? seriesTitle;
+  const lastNotified = notifiedAnimeCooldown.get(cooldownKey) ?? 0;
+  const now = Date.now();
+
+  if (now - lastNotified > NOTIFICATION_COOLDOWN_MS) {
+    notifiedAnimeCooldown.set(cooldownKey, now);
+    sendNotification({
+      title: `Missing Anime Mapping: ${seriesTitle}`,
+      message: `Show: ${seriesTitle}\nEpisode: S${seasonNumber}E${episodeNumber}\nTVDB: ${tvdbId ?? 'Not found in Jellyfin'}\nMissing: ${missingDesc}${actionNotice}`,
+      priority: 4,
+    });
+  }
+};
+
+const handleMissingAnimeMovieMapping = (
+  event: ReturnType<typeof normalizeJellyfinWebhook>,
+  tvdbId: string | undefined,
+  hasAniDb: boolean,
+  hasAniList: boolean,
+  resolved: ReturnType<typeof defaultAnimeResolver.resolveMovie>,
+): void => {
+  const missingParts: string[] = [];
+  if (!hasAniDb) missingParts.push('AniDB');
+  if (!hasAniList) missingParts.push('AniList');
+  const missingDesc = missingParts.join(' and ');
+
+  let actionNotice = '';
+  if (tvdbId) {
+    const overrideResult = defaultAnimeResolver.ensureShowInOverrides({
+      tvdbId,
+      title: event.name,
+      tmdbId: event.providerIds?.tmdb,
+      seasonNumber: 0,
+      episodeNumber: 1,
+      episodeName: event.name,
+      anidbId: resolved?.animeId || null,
+      anidbEpisode: resolved?.episodeNumber ?? null,
+      anilistId: resolved?.anilist?.mediaId ?? null,
+      anilistEpisode: resolved?.anilist?.episodeNumber ?? null,
+    });
+
+    if (overrideResult.added) {
+      actionNotice = `\nAdded to mapping-overrides.json (${overrideResult.reason.replace('_', ' ')})`;
+      logger.info(
+        `[Overrides] Added unmapped anime movie "${event.name}" (TVDB ${tvdbId}) to mapping overrides file.`,
+      );
+    } else if (overrideResult.reason === 'already_exists') {
+      actionNotice = '\nAlready in mapping-overrides.json';
+    }
+  } else {
+    logger.warn(
+      `[Overrides] Anime movie "${event.name}" is missing TVDB ID in Jellyfin. Cannot add to TVDB overrides.`,
+    );
+  }
+
+  const cooldownKey = tvdbId ?? event.name;
+  const lastNotified = notifiedAnimeCooldown.get(cooldownKey) ?? 0;
+  const now = Date.now();
+
+  if (now - lastNotified > NOTIFICATION_COOLDOWN_MS) {
+    notifiedAnimeCooldown.set(cooldownKey, now);
+    sendNotification({
+      title: `Missing Anime Movie Mapping: ${event.name}`,
+      message: `Movie: ${event.name}\nTVDB: ${tvdbId ?? 'Not found in Jellyfin'}\nTMDB: ${event.providerIds?.tmdb ?? 'None'}\nMissing: ${missingDesc}${actionNotice}`,
+      priority: 4,
+    });
+  }
+};
+
+export const checkAnimeMissingMappings = (
+  event: ReturnType<typeof normalizeJellyfinWebhook>,
+): void => {
+  if (event.itemType === 'Episode') {
+    if (event.seasonNumber === undefined || event.episodeNumber === undefined) {
+      logger.warn('Episode event is missing season or episode number.');
+      return;
+    }
+
+    const seriesProviderIds = event.seriesProviderIds;
+    const startEp = event.episodeNumber;
+    const endEp =
+      event.episodeNumberEnd && event.episodeNumberEnd >= startEp
+        ? event.episodeNumberEnd
+        : startEp;
+
+    for (let ep = startEp; ep <= endEp; ep++) {
+      const resolved = defaultAnimeResolver.resolveEpisode(
+        {
+          tvdbId: seriesProviderIds.tvdb,
+          tmdbId: seriesProviderIds.tmdb,
+          anidbId: seriesProviderIds.anidb ?? event.providerIds.anidb,
+          anilistId: seriesProviderIds.anilist ?? event.providerIds.anilist,
+        },
+        event.seasonNumber,
+        ep,
+      );
+
+      const hasAniDb = Boolean(resolved?.animeId);
+      const hasAniList = Boolean(resolved?.anilist?.mediaId);
+
+      if (!hasAniDb || !hasAniList) {
+        handleMissingAnimeMapping(
+          event,
+          seriesProviderIds.tvdb,
+          event.seasonNumber,
+          ep,
+          hasAniDb,
+          hasAniList,
+          resolved,
+        );
+      }
+    }
+  } else if (event.itemType === 'Movie') {
+    const resolved = defaultAnimeResolver.resolveMovie({
+      tmdbId: event.providerIds.tmdb,
+      imdbId: event.providerIds.imdb,
+      tvdbId: event.providerIds.tvdb,
+      anidbId: event.providerIds.anidb,
+      anilistId: event.providerIds.anilist,
+    });
+
+    const hasAniDb = Boolean(resolved?.animeId);
+    const hasAniList = Boolean(resolved?.anilist?.mediaId);
+
+    if (!hasAniDb || !hasAniList) {
+      handleMissingAnimeMovieMapping(event, event.providerIds.tvdb, hasAniDb, hasAniList, resolved);
+    }
+  }
 };

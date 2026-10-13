@@ -128,4 +128,71 @@ describe('TVDB Overrides Index & Resolver Integration', () => {
     const ep4 = resolver.resolveEpisode({ tvdbId: '99999' }, 0, 4);
     expect(ep4).toBeNull();
   });
+
+  test('ensureShowInOverrides should add a new show and episodes to overrides file', () => {
+    const tempPath = `/tmp/test-overrides-${Date.now()}.json`;
+
+    try {
+      // 1. Add new show
+      const res1 = TvdbOverridesIndex.ensureShowInOverrides(
+        {
+          tvdbId: '112233',
+          title: 'Brand New Anime',
+          tmdbId: '9988',
+          seasonNumber: 1,
+          episodeNumber: 1,
+          episodeName: 'Episode 1',
+        },
+        tempPath,
+      );
+      expect(res1.added).toBe(true);
+      expect(res1.reason).toBe('show_added');
+
+      // 2. Add second episode to same show
+      const res2 = TvdbOverridesIndex.ensureShowInOverrides(
+        {
+          tvdbId: '112233',
+          title: 'Brand New Anime',
+          seasonNumber: 1,
+          episodeNumber: 2,
+          episodeName: 'Episode 2',
+        },
+        tempPath,
+      );
+      expect(res2.added).toBe(true);
+      expect(res2.reason).toBe('episode_added');
+
+      // 3. Duplicate check - should not overwrite
+      const res3 = TvdbOverridesIndex.ensureShowInOverrides(
+        {
+          tvdbId: '112233',
+          title: 'Brand New Anime',
+          seasonNumber: 1,
+          episodeNumber: 1,
+        },
+        tempPath,
+      );
+      expect(res3.added).toBe(false);
+      expect(res3.reason).toBe('already_exists');
+
+      // 4. Verify loaded file
+      const loaded = TvdbOverridesIndex.load(tempPath);
+      expect(loaded).not.toBeNull();
+      expect(loaded?.hasShow('112233')).toBe(true);
+      expect(loaded?.hasShow('999999')).toBe(false);
+
+      const ep1 = loaded?.getEpisodeOverride('112233', 1, 1);
+      expect(ep1).not.toBeNull();
+      expect(ep1?.skipAniDb).toBe(true);
+      expect(ep1?.skipAniList).toBe(true);
+
+      const ep2 = loaded?.getEpisodeOverride('112233', 1, 2);
+      expect(ep2).not.toBeNull();
+    } finally {
+      const { unlinkSync, existsSync } = require('node:fs');
+      if (existsSync(tempPath)) {
+        unlinkSync(tempPath);
+      }
+    }
+  });
 });
