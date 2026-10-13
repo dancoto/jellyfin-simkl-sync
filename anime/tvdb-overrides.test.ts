@@ -88,6 +88,7 @@ describe('TVDB Overrides Index & Resolver Integration', () => {
     expect(epOverride).toEqual({
       skip: false,
       skipAniList: true,
+      isExplicitNull: false,
       anilistId: undefined,
       anilistEpisode: undefined,
       isSpecial: true,

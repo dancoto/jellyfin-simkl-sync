@@ -29,6 +29,7 @@ export type RawTvdbOverrides = Record<string, RawShowOverride>;
 export interface TvdbResolvedOverride {
   skip?: boolean;
   skipAniList?: boolean;
+  isExplicitNull?: boolean;
   anilistId?: number;
   anilistEpisode?: number;
   isSpecial?: boolean;
@@ -251,6 +252,7 @@ export class TvdbOverridesIndex {
       }
 
       const skipAniList = Boolean(epConfig.skipAniList);
+      const isExplicitNull = !skipAniList && epConfig.anilistId === null;
 
       const anilistId =
         !skipAniList && epConfig.anilistId !== undefined && epConfig.anilistId !== null
@@ -260,6 +262,7 @@ export class TvdbOverridesIndex {
       return {
         skip: false,
         skipAniList,
+        isExplicitNull,
         anilistId: Number.isInteger(anilistId) ? anilistId : undefined,
         anilistEpisode: epConfig.anilistEpisode ?? (anilistId ? episodeNumber : undefined),
         isSpecial: epConfig.isSpecial ?? seasonNumber === 0,
@@ -282,6 +285,7 @@ export class TvdbOverridesIndex {
       return {
         skip: false,
         skipAniList,
+        isExplicitNull: season.anilistId === null,
         anilistId: Number.isInteger(anilistId) ? anilistId : undefined,
         anilistEpisode: anilistId ? episodeNumber + anilistOffset : undefined,
         isSpecial: seasonNumber === 0,

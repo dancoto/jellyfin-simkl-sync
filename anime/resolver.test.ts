@@ -3,6 +3,7 @@ import { AniBridgeIndex } from './anibridge';
 import { AnimeListIndex } from './animelist';
 import { pair, readAllRanges, readRange, readTarget } from './range';
 import { AnimeResolver } from './resolver';
+import { TvdbOverridesIndex } from './tvdb-overrides';
 
 describe('Anime Range Parser', () => {
   test('should parse single episodes and ranges', () => {
@@ -324,5 +325,51 @@ describe('Overrides & Fallback Precedence', () => {
       kind: 'regular',
       source: 'animelist',
     });
+  });
+
+  test('should fallback to official mapping if override episode exists without anilistId', () => {
+    const aniBridgeSample = AniBridgeIndex.parse({
+      'anidb:17617:R': {
+        'tvdb_show:439265:s1': { '1-28': '1-28' },
+        'anilist:154587': { '1-28': '1-28' },
+      },
+    });
+    const tvdbOverrides = TvdbOverridesIndex.parse({
+      '439265': {
+        title: "Frieren: Beyond Journey's End",
+        seasons: {
+          '1': {
+            episodes: {
+              '1': {
+                name: 'The End of the Journey',
+                // anilistId omitted - using official mapping
+              },
+              '2': {
+                name: 'It Was Not Necessary',
+                anilistId: 99999, // custom override
+                anilistEpisode: 1,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    const resolver = new AnimeResolver();
+    resolver.setIndices(aniBridgeSample, null, null, tvdbOverrides);
+
+    // Official resolution directly
+    const official = resolver.resolveOfficialEpisode({ tvdbId: '439265' }, 1, 1);
+    expect(official?.anilist?.mediaId).toBe(154587);
+
+    // Ep 1 has override entry without anilistId -> falls back to official
+    const ep1 = resolver.resolveEpisode({ tvdbId: '439265' }, 1, 1);
+    expect(ep1?.anilist?.mediaId).toBe(154587);
+
+    // Ep 2 has custom override -> uses override
+    const ep2 = resolver.resolveEpisode({ tvdbId: '439265' }, 1, 2);
+    expect(ep2?.anilist?.mediaId).toBe(99999);
+    expect(ep2?.anilist?.episodeNumber).toBe(1);
+    expect(ep2?.source).toBe('overrides');
   });
 });

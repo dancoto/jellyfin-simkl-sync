@@ -1,6 +1,8 @@
-import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { defaultAnimeResolver } from '../anime';
+import { syncJellyfinCatalog } from '../overrides/catalog';
+import { importJellyfinAnimeMappings } from '../overrides/importer';
 import { appConfig } from '../shared/config';
 
 interface EpisodeItem {
@@ -11,6 +13,9 @@ interface EpisodeItem {
   IndexNumber?: number;
   ParentIndexNumber?: number;
   ProviderIds?: Record<string, string>;
+  LocationType?: string;
+  Path?: string;
+  Container?: string;
 }
 
 interface SeriesItem {
@@ -60,41 +65,86 @@ interface AuditReport {
 
 const parseArgs = () => {
   const args = process.argv.slice(2);
-  let libraryName = 'Anime';
+  let explicitLibrary: string | undefined = undefined;
   let outputPath = 'data/missing-anime.json';
   let generateTemplate = false;
+  let importAll = false;
+  let syncCatalog = false;
 
   for (const arg of args) {
     if (arg.startsWith('--library=')) {
-      libraryName = arg.split('=')[1] || libraryName;
+      explicitLibrary = arg.split('=')[1] || undefined;
     } else if (arg.startsWith('--output=')) {
       outputPath = arg.split('=')[1] || outputPath;
     } else if (arg === '--template' || arg === '--generate-template') {
       generateTemplate = true;
+    } else if (arg === '--import' || arg === '--import-all' || arg === '--all') {
+      importAll = true;
+    } else if (arg === '--sync-catalog' || arg === '--catalog') {
+      syncCatalog = true;
     } else if (arg === '--help' || arg === '-h') {
       console.log(`
 Usage: bun scripts/find-missing-anime.ts [options]
 
 Options:
-  --library=<name>   Jellyfin library name to scan (default: "Anime")
+  --library=<name>   Jellyfin library name to scan (default: "Anime" for audit, all anime libraries for catalog sync)
   --output=<file>    Destination JSON file path (default: "data/missing-anime.json")
-  --template         Also generate a starter data/mapping-overrides.template.json
+  --sync-catalog     Sync Jellyfin anime library into data/anime-catalog.json without modifying overrides
+  --template         Merge unresolved anime into mapping-overrides.json
+  --import-all       Bulk import ALL anime from Jellyfin into mapping-overrides.json
   --help, -h         Show this help message
       `);
       process.exit(0);
     }
   }
 
-  return { libraryName, outputPath, generateTemplate };
+  const libraryName = explicitLibrary || 'Anime';
+  return { libraryName, explicitLibrary, outputPath, generateTemplate, importAll, syncCatalog };
 };
 
 export const runAudit = async () => {
-  const { libraryName, outputPath, generateTemplate } = parseArgs();
+  const { libraryName, explicitLibrary, outputPath, generateTemplate, importAll, syncCatalog } =
+    parseArgs();
 
   const jellyfinConfig = appConfig.jellyfin;
   if (!jellyfinConfig?.url || !jellyfinConfig?.token) {
     console.error('Error: Jellyfin is not configured in config.toml (missing url or token).');
     process.exit(1);
+  }
+
+  if (syncCatalog) {
+    console.log('Syncing Jellyfin anime catalog...');
+    const summary = await syncJellyfinCatalog({
+      libraryNames: explicitLibrary ? [explicitLibrary] : undefined,
+    });
+    console.log('\n================ CATALOG SYNC SUMMARY ================');
+    console.log(`Libraries scanned:            ${summary.librariesScanned.join(', ')}`);
+    console.log(`Series scanned:               ${summary.totalSeriesScanned}`);
+    console.log(`Episodes scanned:             ${summary.totalEpisodesScanned}`);
+    console.log(`Catalog shows count:          ${summary.catalogShowsCount}`);
+    console.log(`Catalog episodes count:       ${summary.catalogEpisodesCount}`);
+    console.log(`Catalog saved at:             data/anime-catalog.json`);
+    console.log('======================================================\n');
+    return;
+  }
+
+  if (importAll) {
+    console.log('Running bulk import of all anime from Jellyfin...');
+    const summary = await importJellyfinAnimeMappings({
+      libraryNames: explicitLibrary ? [explicitLibrary] : undefined,
+    });
+    console.log('\n================ BULK IMPORT SUMMARY ================');
+    console.log(`Libraries scanned:            ${summary.librariesScanned.join(', ')}`);
+    console.log(`Series scanned:               ${summary.totalSeriesScanned}`);
+    console.log(`Episodes scanned:             ${summary.totalEpisodesScanned}`);
+    console.log(`New shows added:              ${summary.showsAdded}`);
+    console.log(`New episodes added:           ${summary.episodesAdded}`);
+    console.log(`Manual mappings preserved:    ${summary.preservedManualEpisodes}`);
+    if (summary.backupPath) {
+      console.log(`Backup created at:            ${summary.backupPath}`);
+    }
+    console.log('=====================================================\n');
+    return;
   }
 
   console.log('1. Initializing Anime Resolver (AniBridge + Anime-Lists)...');
@@ -172,12 +222,11 @@ export const runAudit = async () => {
     epUrl.searchParams.set('parentId', targetFolder.ItemId);
     epUrl.searchParams.set('recursive', 'true');
     epUrl.searchParams.set('includeItemTypes', 'Episode');
-    epUrl.searchParams.set('isMissing', 'false');
     epUrl.searchParams.set('startIndex', String(startIndex));
     epUrl.searchParams.set('limit', String(pageSize));
     epUrl.searchParams.set(
       'fields',
-      'ProviderIds,SeriesId,SeriesName,IndexNumber,ParentIndexNumber,Name',
+      'ProviderIds,SeriesId,SeriesName,IndexNumber,ParentIndexNumber,Name,LocationType,Path',
     );
 
     const epRes = await fetch(epUrl.toString(), { headers });
@@ -200,11 +249,19 @@ export const runAudit = async () => {
     }
 
     for (const ep of items) {
+      const seasonNumber = ep.ParentIndexNumber ?? 0;
+      const episodeNumber = ep.IndexNumber ?? 1;
+
+      // Exclude specials (Season 0) that do not exist in Jellyfin (virtual / missing)
+      const isVirtualSpecial =
+        seasonNumber === 0 && (ep.LocationType === 'Virtual' || (!ep.Path && !ep.Container));
+      if (isVirtualSpecial) {
+        continue;
+      }
+
       const sId = ep.SeriesId || '';
       const sInfo = seriesMap.get(sId);
       const seriesName = sInfo?.name ?? ep.SeriesName ?? 'Unknown Series';
-      const seasonNumber = ep.ParentIndexNumber ?? 0;
-      const episodeNumber = ep.IndexNumber ?? 1;
       const episodeName = ep.Name ?? `Episode ${episodeNumber}`;
 
       const sProv = sInfo?.providerIds ?? {};
@@ -344,12 +401,30 @@ export const runAudit = async () => {
   writeFileSync(resolvedOutputPath, JSON.stringify(report, null, 2), 'utf-8');
 
   if (generateTemplate) {
-    const overrides: Record<string, any> = {};
+    const templatePath = resolve('mapping-overrides.json');
+    let overrides: Record<string, any> = {};
+    if (existsSync(templatePath)) {
+      try {
+        overrides = JSON.parse(readFileSync(templatePath, 'utf-8'));
+      } catch {
+        overrides = {};
+      }
+    }
 
     for (const s of unresolvedBySeries) {
       if (!s.seriesTvdbId) continue;
 
-      const seasonsObj: Record<string, any> = {};
+      let show = overrides[s.seriesTvdbId];
+      if (!show) {
+        show = {
+          title: s.seriesName,
+          tmdbId: s.seriesTmdbId,
+          seasons: {},
+        };
+        overrides[s.seriesTvdbId] = show;
+      }
+      if (!show.seasons) show.seasons = {};
+
       const bySeason = new Map<number, MissingEpisodeEntry[]>();
       for (const ep of s.episodes) {
         let list = bySeason.get(ep.seasonNumber);
@@ -362,31 +437,33 @@ export const runAudit = async () => {
 
       const sortedSeasons = Array.from(bySeason.keys()).sort((a, b) => a - b);
       for (const seasonNum of sortedSeasons) {
+        const seasonKey = String(seasonNum);
+        let season = show.seasons[seasonKey];
+        if (!season) {
+          season = { episodes: {} };
+          show.seasons[seasonKey] = season;
+        }
+        if (!season.episodes) season.episodes = {};
+
         const eps = bySeason.get(seasonNum) || [];
         eps.sort((a, b) => a.episodeNumber - b.episodeNumber);
 
-        const episodesObj: Record<string, any> = {};
         for (const ep of eps) {
-          episodesObj[String(ep.episodeNumber)] = {
-            name: ep.episodeName,
-            anilistId: ep.resolvedAniListId ?? null,
-            anilistEpisode:
-              ep.resolvedAniListEpisode ?? (ep.resolvedAniListId ? ep.episodeNumber : null),
-          };
+          const epKey = String(ep.episodeNumber);
+          if (!season.episodes[epKey]) {
+            season.episodes[epKey] = {
+              name: ep.episodeName,
+              anilistId: ep.resolvedAniListId ?? null,
+              anilistEpisode:
+                ep.resolvedAniListEpisode ?? (ep.resolvedAniListId ? ep.episodeNumber : null),
+            };
+          }
         }
-        seasonsObj[String(seasonNum)] = { episodes: episodesObj };
       }
-
-      overrides[s.seriesTvdbId] = {
-        title: s.seriesName,
-        tmdbId: s.seriesTmdbId,
-        seasons: seasonsObj,
-      };
     }
 
-    const templatePath = resolve('mapping-overrides.json');
     writeFileSync(templatePath, JSON.stringify(overrides, null, 2), 'utf-8');
-    console.log(`Generated overrides file with missing values as null: ${templatePath}`);
+    console.log(`Merged unresolved overrides into: ${templatePath}`);
   }
 
   console.log('\n================ AUDIT SUMMARY ================');

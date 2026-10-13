@@ -107,6 +107,10 @@ export class AnimeResolver {
     this.initialized = true;
   }
 
+  public isInitialized(): boolean {
+    return this.initialized;
+  }
+
   public setTvdbOverrides(tvdbOverrides: TvdbOverridesIndex | null): void {
     this.tvdbOverrides = tvdbOverrides;
   }
@@ -183,6 +187,22 @@ export class AnimeResolver {
         };
       }
 
+      if (tvdbOverride.isExplicitNull) {
+        return {
+          episodeNumber: tvdbOverride.anilistEpisode ?? episodeNumber,
+          isSpecial: tvdbOverride.isSpecial ?? seasonNumber === 0,
+          kind: (tvdbOverride.isSpecial ?? seasonNumber === 0) ? 'special' : 'regular',
+          source: 'overrides',
+          skipAniList: false,
+        };
+      }
+
+      // If anilistId is undefined in override, check official mapping first
+      const official = this.resolveOfficialEpisode(series, seasonNumber, episodeNumber);
+      if (official) {
+        return official;
+      }
+
       return {
         episodeNumber: tvdbOverride.anilistEpisode ?? episodeNumber,
         isSpecial: tvdbOverride.isSpecial ?? seasonNumber === 0,
@@ -190,6 +210,18 @@ export class AnimeResolver {
         source: 'overrides',
         skipAniList: false,
       };
+    }
+
+    return this.resolveOfficialEpisode(series, seasonNumber, episodeNumber);
+  }
+
+  public resolveOfficialEpisode(
+    series: SeriesLookupQuery,
+    seasonNumber: number,
+    episodeNumber: number,
+  ): AnimeEpisodeResult | null {
+    if (!this.initialized) {
+      console.warn('AnimeResolver: queried before initialization.');
     }
 
     let candidate: InternalEpisodeCandidate | null = null;
