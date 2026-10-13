@@ -5,16 +5,14 @@ export const TVDB_OVERRIDES_FILE_NAME = 'mapping-overrides.json';
 
 export interface RawEpisodeOverride {
   name?: string;
-  anidbId?: string | number | null;
-  anidbEpisode?: number | null;
+  skip?: boolean;
+  skipAniList?: boolean;
   anilistId?: string | number | null;
   anilistEpisode?: number | null;
   isSpecial?: boolean;
 }
 
 export interface RawSeasonOverride {
-  anidbId?: string | number | null;
-  anidbEpisodeOffset?: number;
   anilistId?: string | number | null;
   anilistEpisodeOffset?: number;
   episodes?: Record<string, RawEpisodeOverride>;
@@ -30,10 +28,7 @@ export type RawTvdbOverrides = Record<string, RawShowOverride>;
 
 export interface TvdbResolvedOverride {
   skip?: boolean;
-  skipAniDb?: boolean;
   skipAniList?: boolean;
-  anidbId?: string;
-  anidbEpisode?: number;
   anilistId?: number;
   anilistEpisode?: number;
   isSpecial?: boolean;
@@ -46,8 +41,6 @@ export interface EnsureShowOverrideParams {
   seasonNumber?: number;
   episodeNumber?: number;
   episodeName?: string;
-  anidbId?: string | number | null;
-  anidbEpisode?: number | null;
   anilistId?: string | number | null;
   anilistEpisode?: number | null;
 }
@@ -178,13 +171,12 @@ export class TvdbOverridesIndex {
 
     const epKey = String(epNum);
     if (!episodes[epKey]) {
-      episodes[epKey] = {
+      const epEntry: RawEpisodeOverride = {
         name: params.episodeName ?? `Episode ${epNum}`,
-        anidbId: params.anidbId ?? null,
-        anidbEpisode: params.anidbEpisode ?? (params.anidbId ? epNum : null),
         anilistId: params.anilistId ?? null,
         anilistEpisode: params.anilistEpisode ?? (params.anilistId ? epNum : null),
       };
+      episodes[epKey] = epEntry;
       if (!added) {
         added = true;
         reason = 'episode_added';
@@ -254,30 +246,20 @@ export class TvdbOverridesIndex {
 
     // 2. Resolve episode configuration
     if (epConfig) {
-      const skipAniDb = epConfig.anidbId === null;
-      const skipAniList = epConfig.anilistId === null;
-
-      // Both explicitly null -> skip both flows
-      if (skipAniDb && skipAniList) {
-        return { skip: true, skipAniDb: true, skipAniList: true };
+      if (epConfig.skip) {
+        return { skip: true, skipAniList: true };
       }
 
-      const anidbId =
-        epConfig.anidbId !== undefined && epConfig.anidbId !== null
-          ? String(epConfig.anidbId)
-          : undefined;
+      const skipAniList = Boolean(epConfig.skipAniList);
 
       const anilistId =
-        epConfig.anilistId !== undefined && epConfig.anilistId !== null
+        !skipAniList && epConfig.anilistId !== undefined && epConfig.anilistId !== null
           ? parseInt(String(epConfig.anilistId), 10)
           : undefined;
 
       return {
         skip: false,
-        skipAniDb,
         skipAniList,
-        anidbId,
-        anidbEpisode: epConfig.anidbEpisode ?? (anidbId ? episodeNumber : undefined),
         anilistId: Number.isInteger(anilistId) ? anilistId : undefined,
         anilistEpisode: epConfig.anilistEpisode ?? (anilistId ? episodeNumber : undefined),
         isSpecial: epConfig.isSpecial ?? seasonNumber === 0,
@@ -285,36 +267,21 @@ export class TvdbOverridesIndex {
     }
 
     // 3. Fallback to season-level 1:1 defaults
-    const hasSeasonAniDb = season.anidbId !== undefined;
     const hasSeasonAniList = season.anilistId !== undefined;
 
-    if (hasSeasonAniDb || hasSeasonAniList) {
-      const skipAniDb = season.anidbId === null;
+    if (hasSeasonAniList) {
       const skipAniList = season.anilistId === null;
-
-      if (skipAniDb && skipAniList) {
-        return { skip: true, skipAniDb: true, skipAniList: true };
-      }
-
-      const anidbId =
-        season.anidbId !== undefined && season.anidbId !== null
-          ? String(season.anidbId)
-          : undefined;
 
       const anilistId =
         season.anilistId !== undefined && season.anilistId !== null
           ? parseInt(String(season.anilistId), 10)
           : undefined;
 
-      const anidbOffset = season.anidbEpisodeOffset ?? 0;
       const anilistOffset = season.anilistEpisodeOffset ?? 0;
 
       return {
         skip: false,
-        skipAniDb,
         skipAniList,
-        anidbId,
-        anidbEpisode: anidbId ? episodeNumber + anidbOffset : undefined,
         anilistId: Number.isInteger(anilistId) ? anilistId : undefined,
         anilistEpisode: anilistId ? episodeNumber + anilistOffset : undefined,
         isSpecial: seasonNumber === 0,

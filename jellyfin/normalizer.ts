@@ -116,12 +116,6 @@ export const normalizeJellyfinWebhook = (payload: RawJellyfinPayload): Normalize
     ) {
       seriesProviderIds['tmdb'] = strVal;
     } else if (
-      lowerKey === 'series_anidb' ||
-      lowerKey === 'seriesanidb' ||
-      lowerKey === 'seriesanidbid'
-    ) {
-      seriesProviderIds['anidb'] = strVal;
-    } else if (
       lowerKey === 'series_imdb' ||
       lowerKey === 'seriesimdb' ||
       lowerKey === 'seriesimdbid'
@@ -137,8 +131,6 @@ export const normalizeJellyfinWebhook = (payload: RawJellyfinPayload): Normalize
       providerIds['tvdb'] = strVal;
     } else if (lowerKey === 'tmdb' || lowerKey === 'tmdbid') {
       providerIds['tmdb'] = strVal;
-    } else if (lowerKey === 'anidb' || lowerKey === 'anidbid') {
-      providerIds['anidb'] = strVal;
     } else if (lowerKey === 'imdb' || lowerKey === 'imdbid') {
       providerIds['imdb'] = strVal;
     }

@@ -1,8 +1,8 @@
-import type { AniDbSeasonSegment, EpisodeKind } from './models';
+import type { AnimeSeasonSegment, EpisodeKind } from './models';
 
 const MAX_EPISODES_PER_SEASON = 2000;
 
-export const orderSegments = (claims: AniDbSeasonSegment[]): AniDbSeasonSegment[] => {
+export const orderSegments = (claims: AnimeSeasonSegment[]): AnimeSeasonSegment[] => {
   if (claims.length === 0) {
     return [];
   }
@@ -28,8 +28,8 @@ export const orderSegments = (claims: AniDbSeasonSegment[]): AniDbSeasonSegment[
 };
 
 export const resolveSeasonSegments = (
-  claimsByKind: Map<EpisodeKind, AniDbSeasonSegment[]>,
-): AniDbSeasonSegment[] => {
+  claimsByKind: Map<EpisodeKind, AnimeSeasonSegment[]>,
+): AnimeSeasonSegment[] => {
   if (claimsByKind.size === 0) {
     return [];
   }
@@ -42,7 +42,7 @@ export const resolveSeasonSegments = (
   return orderSegments(mergeSegments(claimsByKind));
 };
 
-const getCoverage = (segments: AniDbSeasonSegment[]): number => {
+const getCoverage = (segments: AnimeSeasonSegment[]): number => {
   let covered = 0;
   for (const seg of segments) {
     if (seg.episodeCount <= 0) {
@@ -54,8 +54,8 @@ const getCoverage = (segments: AniDbSeasonSegment[]): number => {
 };
 
 const mergeSegments = (
-  claimsByKind: Map<EpisodeKind, AniDbSeasonSegment[]>,
-): AniDbSeasonSegment[] => {
+  claimsByKind: Map<EpisodeKind, AnimeSeasonSegment[]>,
+): AnimeSeasonSegment[] => {
   const ordered = Array.from(claimsByKind.entries()).sort(([kindA, segsA], [kindB, segsB]) => {
     const covA = getCoverage(segsA);
     const covB = getCoverage(segsB);
@@ -76,7 +76,7 @@ const mergeSegments = (
     return ordered[0]![1];
   }
 
-  const placed = new Map<number, AniDbSeasonSegment>();
+  const placed = new Map<number, AnimeSeasonSegment>();
 
   for (const [, segments] of ordered) {
     for (const segment of segments) {
@@ -97,7 +97,7 @@ const mergeSegments = (
   }
 
   const sortedEpisodes = Array.from(placed.keys()).sort((a, b) => a - b);
-  const merged: AniDbSeasonSegment[] = [];
+  const merged: AnimeSeasonSegment[] = [];
 
   for (const ep of sortedEpisodes) {
     const one = placed.get(ep)!;
@@ -119,6 +119,6 @@ const mergeSegments = (
   return merged;
 };
 
-const getSegmentCount = (seg: AniDbSeasonSegment): number => {
+const getSegmentCount = (seg: AnimeSeasonSegment): number => {
   return seg.episodeCount > 0 ? seg.episodeCount : 0;
 };

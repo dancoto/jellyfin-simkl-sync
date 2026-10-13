@@ -11,14 +11,10 @@ describe('TVDB Overrides Index & Resolver Integration', () => {
           episodes: {
             '25': {
               name: 'Final Special',
-              anidbId: '35',
-              anidbEpisode: 25,
-              anilistId: null, // null skips AniList
+              anilistId: null, // null means unmapped/missing AniList
             },
             '26': {
               name: 'Christmas Special',
-              anidbId: '35',
-              anidbEpisode: 26,
               anilistId: 444, // valid AniList ID
               anilistEpisode: 1,
             },
@@ -33,16 +29,13 @@ describe('TVDB Overrides Index & Resolver Integration', () => {
           episodes: {
             '1': {
               name: 'Jack In! MegaMan!',
-              anidbId: null, // both null = skipped
-              anilistId: null,
+              skip: true,
             },
           },
         },
         '2': {
           // Season level 1:1 shorthand
-          anidbId: '1500',
           anilistId: 3000,
-          anidbEpisodeOffset: 0,
         },
       },
     },
@@ -53,7 +46,6 @@ describe('TVDB Overrides Index & Resolver Integration', () => {
           episodes: {
             '1-3': {
               name: 'OVA Trilogy',
-              anidbId: '8888',
               anilistId: 9999,
             },
           },
@@ -62,35 +54,65 @@ describe('TVDB Overrides Index & Resolver Integration', () => {
     },
   };
 
-  test('should skip AniList when anilistId is null, but keep AniDB', () => {
+  test('should leave anilist undefined when anilistId is null (unmapped)', () => {
     const tvdbOverrides = TvdbOverridesIndex.parse(sampleOverridesData);
     const resolver = new AnimeResolver();
     resolver.setIndices(null, null, null, tvdbOverrides);
 
     const result = resolver.resolveEpisode({ tvdbId: '70861' }, 1, 25);
     expect(result).not.toBeNull();
-    expect(result?.animeId).toBe('35');
     expect(result?.episodeNumber).toBe(25);
-    expect(result?.skipAniDb).toBe(false);
-    expect(result?.skipAniList).toBe(true);
-    expect(result?.anilist).toBeUndefined();
     expect(result?.isSkipped).toBeFalsy();
+    expect(result?.skipAniList).toBe(false);
+    expect(result?.anilist).toBeUndefined();
   });
 
-  test('should map both AniDB and AniList when valid IDs are provided', () => {
+  test('should resolve skipAniList: true with isSkipped falsy for TVDB fallback', () => {
+    const customData = {
+      '55555': {
+        title: 'Special Show',
+        seasons: {
+          '0': {
+            episodes: {
+              '1': {
+                name: 'Special with No AniList entry',
+                skipAniList: true,
+              },
+            },
+          },
+        },
+      },
+    };
+    const tvdbOverrides = TvdbOverridesIndex.parse(customData);
+    const epOverride = tvdbOverrides.getEpisodeOverride('55555', 0, 1);
+    expect(epOverride).toEqual({
+      skip: false,
+      skipAniList: true,
+      anilistId: undefined,
+      anilistEpisode: undefined,
+      isSpecial: true,
+    });
+
+    const resolver = new AnimeResolver();
+    resolver.setIndices(null, null, null, tvdbOverrides);
+    const result = resolver.resolveEpisode({ tvdbId: '55555' }, 0, 1);
+    expect(result).not.toBeNull();
+    expect(result?.isSkipped).toBeFalsy();
+    expect(result?.skipAniList).toBe(true);
+    expect(result?.anilist).toBeUndefined();
+  });
+
+  test('should map AniList when valid ID is provided', () => {
     const tvdbOverrides = TvdbOverridesIndex.parse(sampleOverridesData);
     const resolver = new AnimeResolver();
     resolver.setIndices(null, null, null, tvdbOverrides);
 
     const result = resolver.resolveEpisode({ tvdbId: '70861' }, 1, 26);
     expect(result).not.toBeNull();
-    expect(result?.animeId).toBe('35');
-    expect(result?.skipAniDb).toBe(false);
-    expect(result?.skipAniList).toBe(false);
     expect(result?.anilist).toEqual({ mediaId: 444, episodeNumber: 1 });
   });
 
-  test('should mark isSkipped when both IDs are null', () => {
+  test('should mark isSkipped when skip is true', () => {
     const tvdbOverrides = TvdbOverridesIndex.parse(sampleOverridesData);
     const resolver = new AnimeResolver();
     resolver.setIndices(null, null, null, tvdbOverrides);
@@ -98,7 +120,6 @@ describe('TVDB Overrides Index & Resolver Integration', () => {
     const result = resolver.resolveEpisode({ tvdbId: '72172' }, 1, 1);
     expect(result).not.toBeNull();
     expect(result?.isSkipped).toBe(true);
-    expect(result?.skipAniDb).toBe(true);
     expect(result?.skipAniList).toBe(true);
   });
 
@@ -109,7 +130,6 @@ describe('TVDB Overrides Index & Resolver Integration', () => {
 
     const result = resolver.resolveEpisode({ tvdbId: '72172' }, 2, 5);
     expect(result).not.toBeNull();
-    expect(result?.animeId).toBe('1500');
     expect(result?.episodeNumber).toBe(5);
     expect(result?.anilist).toEqual({ mediaId: 3000, episodeNumber: 5 });
   });
@@ -121,8 +141,8 @@ describe('TVDB Overrides Index & Resolver Integration', () => {
 
     const ep2 = resolver.resolveEpisode({ tvdbId: '99999' }, 0, 2);
     expect(ep2).not.toBeNull();
-    expect(ep2?.animeId).toBe('8888');
     expect(ep2?.anilist?.mediaId).toBe(9999);
+    expect(ep2?.anilist?.episodeNumber).toBe(2);
 
     // Episode 4 is not in the 1-3 range
     const ep4 = resolver.resolveEpisode({ tvdbId: '99999' }, 0, 4);
@@ -183,8 +203,8 @@ describe('TVDB Overrides Index & Resolver Integration', () => {
 
       const ep1 = loaded?.getEpisodeOverride('112233', 1, 1);
       expect(ep1).not.toBeNull();
-      expect(ep1?.skipAniDb).toBe(true);
-      expect(ep1?.skipAniList).toBe(true);
+      expect(ep1?.skipAniList).toBe(false);
+      expect(ep1?.anilistId).toBeUndefined();
 
       const ep2 = loaded?.getEpisodeOverride('112233', 1, 2);
       expect(ep2).not.toBeNull();

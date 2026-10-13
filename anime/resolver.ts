@@ -9,9 +9,10 @@ import {
 } from './cache';
 import type {
   AniBridgeEntry,
-  AniDbSeasonSegment,
+  AnimeSeasonSegment,
   AnimeEpisodeResult,
   AnimeMovieResult,
+  EpisodeKind,
   MovieLookupQuery,
   SeriesLookupQuery,
 } from './models';
@@ -21,6 +22,20 @@ import {
   type EnsureShowOverrideParams,
   type EnsureShowOverrideResult,
 } from './tvdb-overrides';
+
+interface InternalEpisodeCandidate {
+  internalAnimeId?: string;
+  episodeNumber: number;
+  isSpecial: boolean;
+  kind: EpisodeKind;
+  source: 'overrides' | 'anibridge' | 'animelist';
+}
+
+interface InternalMovieCandidate {
+  internalAnimeId?: string;
+  episodeNumber: number;
+  source: 'overrides' | 'anibridge' | 'animelist';
+}
 
 export interface ResolverOptions extends CacheOptions {
   overridesPath?: string;
@@ -135,141 +150,56 @@ export class AnimeResolver {
     if (tvdbOverride) {
       if (tvdbOverride.skip) {
         return {
-          animeId: '',
           episodeNumber,
           isSpecial: seasonNumber === 0,
           kind: seasonNumber === 0 ? 'special' : 'regular',
           source: 'overrides',
           isSkipped: true,
-          skipAniDb: true,
           skipAniList: true,
         };
       }
 
-      // If anidbId is explicitly specified in override
-      if (tvdbOverride.anidbId !== undefined) {
-        const result: AnimeEpisodeResult = {
-          animeId: tvdbOverride.anidbId,
-          episodeNumber: tvdbOverride.anidbEpisode ?? episodeNumber,
+      if (tvdbOverride.anilistId !== undefined) {
+        return {
+          episodeNumber: tvdbOverride.anilistEpisode ?? episodeNumber,
           isSpecial: tvdbOverride.isSpecial ?? seasonNumber === 0,
           kind: (tvdbOverride.isSpecial ?? seasonNumber === 0) ? 'special' : 'regular',
           source: 'overrides',
-          skipAniDb: tvdbOverride.skipAniDb,
-          skipAniList: tvdbOverride.skipAniList,
-        };
-
-        if (tvdbOverride.skipAniList) {
-          result.anilist = undefined;
-          return result;
-        }
-
-        if (tvdbOverride.anilistId !== undefined) {
-          result.anilist = {
-            mediaId: tvdbOverride.anilistId,
-            episodeNumber: tvdbOverride.anilistEpisode ?? result.episodeNumber,
-          };
-          return result;
-        }
-
-        return this.attachAniListMapping(
-          result,
-          series.anilistId,
-          series.tvdbId,
-          seasonNumber,
-          episodeNumber,
-        );
-      }
-
-      // If anidbId was explicitly set to null (skipAniDb)
-      if (tvdbOverride.skipAniDb) {
-        const result: AnimeEpisodeResult = {
-          animeId: '',
-          episodeNumber,
-          isSpecial: tvdbOverride.isSpecial ?? seasonNumber === 0,
-          kind: (tvdbOverride.isSpecial ?? seasonNumber === 0) ? 'special' : 'regular',
-          source: 'overrides',
-          skipAniDb: true,
-          skipAniList: tvdbOverride.skipAniList,
-        };
-
-        if (tvdbOverride.anilistId !== undefined && !tvdbOverride.skipAniList) {
-          result.anilist = {
+          anilist: {
             mediaId: tvdbOverride.anilistId,
             episodeNumber: tvdbOverride.anilistEpisode ?? episodeNumber,
-          };
-        }
-        return result;
-      }
-
-      // If anidbId was not specified (partial override for AniList):
-      // Resolve through standard pipeline first
-      let partialResult: AnimeEpisodeResult | null = null;
-      if (seasonNumber === 0) {
-        partialResult = this.resolveSpecial(series, episodeNumber);
-      } else {
-        partialResult =
-          this.resolveRegularFromIndex(
-            this.overrides,
-            series,
-            seasonNumber,
-            episodeNumber,
-            'overrides',
-          ) ||
-          this.resolveRegularFromIndex(
-            this.aniBridge,
-            series,
-            seasonNumber,
-            episodeNumber,
-            'anibridge',
-          ) ||
-          this.resolveRegularFromAnimeList(series, seasonNumber, episodeNumber);
-
-        if (!partialResult && series.anidbId && seasonNumber === 1) {
-          partialResult = {
-            animeId: series.anidbId,
-            episodeNumber,
-            isSpecial: false,
-            kind: 'regular',
-            source: 'overrides',
-          };
-        }
+          },
+          skipAniList: false,
+        };
       }
 
       if (tvdbOverride.skipAniList) {
-        if (!partialResult) return null;
-        partialResult.skipAniList = true;
-        partialResult.anilist = undefined;
-        return partialResult;
+        return {
+          episodeNumber,
+          isSpecial: seasonNumber === 0,
+          kind: seasonNumber === 0 ? 'special' : 'regular',
+          source: 'overrides',
+          skipAniList: true,
+        };
       }
 
-      if (tvdbOverride.anilistId !== undefined) {
-        if (!partialResult) {
-          partialResult = {
-            animeId: '',
-            episodeNumber,
-            isSpecial: seasonNumber === 0,
-            kind: seasonNumber === 0 ? 'special' : 'regular',
-            source: 'overrides',
-            skipAniDb: true,
-          };
-        }
-        partialResult.anilist = {
-          mediaId: tvdbOverride.anilistId,
-          episodeNumber:
-            tvdbOverride.anilistEpisode ?? (partialResult.episodeNumber || episodeNumber),
-        };
-        return partialResult;
-      }
+      return {
+        episodeNumber: tvdbOverride.anilistEpisode ?? episodeNumber,
+        isSpecial: tvdbOverride.isSpecial ?? seasonNumber === 0,
+        kind: (tvdbOverride.isSpecial ?? seasonNumber === 0) ? 'special' : 'regular',
+        source: 'overrides',
+        skipAniList: false,
+      };
     }
 
-    let result: AnimeEpisodeResult | null = null;
+    let candidate: InternalEpisodeCandidate | null = null;
 
     // 1. Check specials (Season 0)
     if (seasonNumber === 0) {
-      result = this.resolveSpecial(series, episodeNumber);
+      candidate = this.resolveSpecial(series, episodeNumber);
     } else {
       // 2. Regular Season: Check Overrides -> AniBridge -> AnimeList
-      result =
+      candidate =
         this.resolveRegularFromIndex(
           this.overrides,
           series,
@@ -285,22 +215,11 @@ export class AnimeResolver {
           'anibridge',
         ) ||
         this.resolveRegularFromAnimeList(series, seasonNumber, episodeNumber);
-
-      // Fallback: If anidbId was given directly and it's season 1
-      if (!result && series.anidbId && seasonNumber === 1) {
-        result = {
-          animeId: series.anidbId,
-          episodeNumber,
-          isSpecial: false,
-          kind: 'regular',
-          source: 'overrides',
-        };
-      }
     }
 
-    if (result) {
+    if (candidate) {
       return this.attachAniListMapping(
-        result,
+        candidate,
         series.anilistId,
         series.tvdbId,
         seasonNumber,
@@ -308,7 +227,7 @@ export class AnimeResolver {
       );
     }
 
-    // Fallback: If no AniDB mapping exists, but a direct TVDB -> AniList mapping is known
+    // Direct TVDB -> AniList mapping from AniBridge index if no spans matched
     if (this.aniBridge && series.tvdbId) {
       const anilistMatch = this.aniBridge.resolveAniListFromTvdb(
         series.tvdbId,
@@ -317,12 +236,10 @@ export class AnimeResolver {
       );
       if (anilistMatch) {
         return {
-          animeId: '',
           episodeNumber,
           isSpecial: seasonNumber === 0,
           kind: seasonNumber === 0 ? 'special' : 'regular',
           source: 'anibridge',
-          skipAniDb: true,
           anilist: anilistMatch,
         };
       }
@@ -336,14 +253,14 @@ export class AnimeResolver {
       console.warn('AnimeResolver: queried before initialization.');
     }
 
-    let result: AnimeMovieResult | null = null;
+    let candidate: InternalMovieCandidate | null = null;
 
     // 1. Overrides
     if (this.overrides) {
       const match = this.overrides.resolveMovie(movie.tmdbId, movie.imdbId, movie.tvdbId);
       if (match) {
-        result = {
-          animeId: match.animeId,
+        candidate = {
+          internalAnimeId: match.animeId,
           episodeNumber: match.episodeNumber,
           source: 'overrides',
         };
@@ -351,11 +268,11 @@ export class AnimeResolver {
     }
 
     // 2. AniBridge
-    if (!result && this.aniBridge) {
+    if (!candidate && this.aniBridge) {
       const match = this.aniBridge.resolveMovie(movie.tmdbId, movie.imdbId, movie.tvdbId);
       if (match) {
-        result = {
-          animeId: match.animeId,
+        candidate = {
+          internalAnimeId: match.animeId,
           episodeNumber: match.episodeNumber,
           source: 'anibridge',
         };
@@ -363,31 +280,22 @@ export class AnimeResolver {
     }
 
     // 3. AnimeList
-    if (!result && this.animeList) {
+    if (!candidate && this.animeList) {
       const match = this.animeList.resolveMovie(movie.tmdbId, movie.imdbId, movie.tvdbId);
       if (match) {
-        result = {
-          animeId: match.animeId,
+        candidate = {
+          internalAnimeId: match.animeId,
           episodeNumber: match.episodeNumber,
           source: 'animelist',
         };
       }
     }
 
-    // 4. Fallback if anidbId directly passed
-    if (!result && movie.anidbId) {
-      result = {
-        animeId: movie.anidbId,
-        episodeNumber: 1,
-        source: 'overrides',
-      };
+    if (candidate) {
+      return this.attachAniListMovieMapping(candidate, movie);
     }
 
-    if (result) {
-      return this.attachAniListMovieMapping(result, movie);
-    }
-
-    // Fallback: If no AniDB mapping exists, but direct AniList movie mapping is known
+    // Fallback: If direct AniList movie mapping is known
     if (this.aniBridge) {
       const anilistMatch = this.aniBridge.resolveAniListMovie(
         movie.tmdbId,
@@ -396,7 +304,6 @@ export class AnimeResolver {
       );
       if (anilistMatch) {
         return {
-          animeId: '',
           episodeNumber: anilistMatch.episodeNumber,
           source: 'anibridge',
           anilist: anilistMatch,
@@ -408,7 +315,7 @@ export class AnimeResolver {
   }
 
   private attachAniListMapping(
-    result: AnimeEpisodeResult,
+    candidate: InternalEpisodeCandidate,
     anilistId?: string,
     tvdbId?: string,
     seasonNumber?: number,
@@ -418,14 +325,14 @@ export class AnimeResolver {
     if (anilistId) {
       const parsed = parseInt(anilistId, 10);
       if (Number.isInteger(parsed)) {
-        anilistMatch = { mediaId: parsed, episodeNumber: result.episodeNumber };
+        anilistMatch = { mediaId: parsed, episodeNumber: candidate.episodeNumber };
       }
     }
-    if (!anilistMatch && this.overrides) {
+    if (!anilistMatch && this.overrides && candidate.internalAnimeId) {
       anilistMatch = this.overrides.resolveAniList(
-        result.animeId,
-        result.kind,
-        result.episodeNumber,
+        candidate.internalAnimeId,
+        candidate.kind,
+        candidate.episodeNumber,
       );
     }
     // Check direct TVDB Season -> AniList mapping from AniBridge index
@@ -438,14 +345,21 @@ export class AnimeResolver {
     ) {
       anilistMatch = this.aniBridge.resolveAniListFromTvdb(tvdbId, seasonNumber, episodeNumber);
     }
-    // Fallback to AniDB -> AniList mapping
-    if (!anilistMatch && this.aniBridge) {
+    // Fallback to internal entry -> AniList mapping
+    if (!anilistMatch && this.aniBridge && candidate.internalAnimeId) {
       anilistMatch = this.aniBridge.resolveAniList(
-        result.animeId,
-        result.kind,
-        result.episodeNumber,
+        candidate.internalAnimeId,
+        candidate.kind,
+        candidate.episodeNumber,
       );
     }
+
+    const result: AnimeEpisodeResult = {
+      episodeNumber: candidate.episodeNumber,
+      isSpecial: candidate.isSpecial,
+      kind: candidate.kind,
+      source: candidate.source,
+    };
     if (anilistMatch) {
       result.anilist = anilistMatch;
     }
@@ -453,7 +367,7 @@ export class AnimeResolver {
   }
 
   private attachAniListMovieMapping(
-    result: AnimeMovieResult,
+    candidate: InternalMovieCandidate,
     movie: MovieLookupQuery,
   ): AnimeMovieResult {
     let anilistMatch: { mediaId: number; episodeNumber: number } | null = null;
@@ -463,15 +377,20 @@ export class AnimeResolver {
         anilistMatch = { mediaId: parsed, episodeNumber: 1 };
       }
     }
-    if (!anilistMatch && this.overrides) {
-      anilistMatch = this.overrides.resolveAniList(result.animeId, 'regular', 1);
+    if (!anilistMatch && this.overrides && candidate.internalAnimeId) {
+      anilistMatch = this.overrides.resolveAniList(candidate.internalAnimeId, 'regular', 1);
     }
     if (!anilistMatch && this.aniBridge) {
       anilistMatch = this.aniBridge.resolveAniListMovie(movie.tmdbId, movie.imdbId, movie.tvdbId);
     }
-    if (!anilistMatch && this.aniBridge) {
-      anilistMatch = this.aniBridge.resolveAniList(result.animeId, 'regular', 1);
+    if (!anilistMatch && this.aniBridge && candidate.internalAnimeId) {
+      anilistMatch = this.aniBridge.resolveAniList(candidate.internalAnimeId, 'regular', 1);
     }
+
+    const result: AnimeMovieResult = {
+      episodeNumber: candidate.episodeNumber,
+      source: candidate.source,
+    };
     if (anilistMatch) {
       result.anilist = anilistMatch;
     }
@@ -481,7 +400,7 @@ export class AnimeResolver {
   private resolveSpecial(
     series: SeriesLookupQuery,
     episodeNumber: number,
-  ): AnimeEpisodeResult | null {
+  ): InternalEpisodeCandidate | null {
     // 1. Overrides
     if (this.overrides) {
       const siblings = this.getSiblingsFromAniBridge(this.overrides, series);
@@ -489,7 +408,7 @@ export class AnimeResolver {
         const match = this.overrides.placeSpecial(siblings, episodeNumber);
         if (match) {
           return {
-            animeId: match.animeId,
+            internalAnimeId: match.animeId,
             episodeNumber: match.episodeNumber,
             isSpecial: match.kind === 'special',
             kind: match.kind,
@@ -506,7 +425,7 @@ export class AnimeResolver {
         const match = this.aniBridge.placeSpecial(siblings, episodeNumber);
         if (match) {
           return {
-            animeId: match.animeId,
+            internalAnimeId: match.animeId,
             episodeNumber: match.episodeNumber,
             isSpecial: match.kind === 'special',
             kind: match.kind,
@@ -523,7 +442,7 @@ export class AnimeResolver {
         const match = this.animeList.placeSpecial(siblings, episodeNumber);
         if (match) {
           return {
-            animeId: match.animeId,
+            internalAnimeId: match.animeId,
             episodeNumber: match.episodeNumber,
             isSpecial: match.kind === 'special',
             kind: match.kind,
@@ -542,7 +461,7 @@ export class AnimeResolver {
     seasonNumber: number,
     episodeNumber: number,
     source: 'overrides' | 'anibridge',
-  ): AnimeEpisodeResult | null {
+  ): InternalEpisodeCandidate | null {
     if (!index) return null;
 
     const siblings = this.getSiblingsFromAniBridge(index, series);
@@ -554,7 +473,7 @@ export class AnimeResolver {
 
     const offset = episodeNumber - segment.firstEpisodeNumber;
     return {
-      animeId: segment.animeId,
+      internalAnimeId: segment.animeId,
       episodeNumber: segment.firstEpisodeInEntry + offset,
       isSpecial: segment.kind === 'special',
       kind: segment.kind,
@@ -566,17 +485,10 @@ export class AnimeResolver {
     series: SeriesLookupQuery,
     seasonNumber: number,
     episodeNumber: number,
-  ): AnimeEpisodeResult | null {
+  ): InternalEpisodeCandidate | null {
     if (!this.animeList) return null;
 
-    let siblings = series.tvdbId ? this.animeList.getEntriesForShow(series.tvdbId) : null;
-    if (!siblings && series.anidbId) {
-      const entry = this.animeList.entriesByAnimeId.get(series.anidbId);
-      if (entry) {
-        siblings = this.animeList.getEntriesForShow(entry.seriesKey);
-      }
-    }
-
+    const siblings = series.tvdbId ? this.animeList.getEntriesForShow(series.tvdbId) : null;
     if (!siblings || siblings.length === 0) return null;
 
     const segments = this.animeList.placeSeason(siblings, seasonNumber);
@@ -585,7 +497,7 @@ export class AnimeResolver {
 
     const offset = episodeNumber - segment.firstEpisodeNumber;
     return {
-      animeId: segment.animeId,
+      internalAnimeId: segment.animeId,
       episodeNumber: segment.firstEpisodeInEntry + offset,
       isSpecial: false,
       kind: 'regular',
@@ -607,18 +519,13 @@ export class AnimeResolver {
       if (entries) return entries;
     }
 
-    if (series.anidbId) {
-      const entries = index.getEntriesForAnimeId(series.anidbId);
-      if (entries) return entries;
-    }
-
     return null;
   }
 
   private findMatchingSegment(
-    segments: AniDbSeasonSegment[],
+    segments: AnimeSeasonSegment[],
     episodeNumber: number,
-  ): AniDbSeasonSegment | null {
+  ): AnimeSeasonSegment | null {
     for (const seg of segments) {
       if (episodeNumber < seg.firstEpisodeNumber) continue;
 

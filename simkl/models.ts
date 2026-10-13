@@ -9,7 +9,7 @@ export type WatchStatus = (typeof WATCH_STATUS)[keyof typeof WATCH_STATUS];
 export type Show = {
   title?: string;
   ids: {
-    anidb?: string;
+    anilist?: string | number;
     tvdb?: string;
     tmdb?: string;
     imdb?: string;
@@ -27,10 +27,22 @@ export type Episode = {
   number: number;
 };
 
+export type AnimeItem = {
+  title?: string;
+  ids: {
+    anilist?: string | number;
+    tvdb?: string;
+    tmdb?: string;
+    imdb?: string;
+    [key: string]: any;
+  };
+  episodes: Episode[];
+};
+
 export type Movie = {
   title?: string;
   ids: {
-    anidb?: string;
+    anilist?: string | number;
     tmdb?: string;
     imdb?: string;
     tvdb?: string;
@@ -55,7 +67,9 @@ export type SyncResponse = {
     statuses: {
       request: {
         ids: {
-          anidb?: string;
+          anilist?: string | number;
+          tvdb?: string;
+          tmdb?: string;
           [key: string]: any;
         };
         type: string;
@@ -71,7 +85,7 @@ export type SyncResponse = {
 
 export interface ScrobbleIds {
   simkl?: number;
-  anidb?: number | string;
+  anilist?: number | string;
   tvdb?: number | string;
   tmdb?: number | string;
   imdb?: string;
@@ -106,4 +120,4 @@ export interface ScrobbleRequest {
 export type ScrobbleResult =
   | { success: true; id: string; watchStatus: WatchStatus; skipped: false }
   | { success: true; skipped: true }
-  | { success: false; reason: 'not_found' | 'api_error'; anidbId: string };
+  | { success: false; reason: 'not_found' | 'api_error'; id?: string };

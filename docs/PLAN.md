@@ -8,17 +8,18 @@ This project is transitioning from a Shoko Server-dependent bridge to an agnosti
 
 1. **Deprecate Shoko Server Dependency**: Eliminate the dependency on a local Shoko Server instance.
 2. **Direct Jellyfin Integration**: Ingest webhook events directly from Jellyfin's Webhook Plugin (`jellyfin-plugin-webhook`).
-3. **Smart Anime Cross-Referencing**: Adopt the mapping approach used by `jellyfin-plugin-anidb`:
+3. **Smart Anime Cross-Referencing**:
    - Prioritized 3-tier mapping pipeline:
-     1. Local User Overrides (`anidb-mapping-overrides.json`)
+     1. Local User Overrides (`mapping-overrides.json` / Web UI)
      2. AniBridge Mappings (`anibridge/anibridge-mappings` schema v3)
      3. Anime-Lists XML Fallback (`Anime-Lists/anime-lists`)
-   - Translate Jellyfin TVDB/TMDB seasons and episodes into distinct AniDB anime entries and 1..N episode numbers.
-   - Translate Movie TMDB/IMDb/TVDB IDs to AniDB movie entries.
-4. **Modernized Simkl Integration**: Port payload models and scrobble conventions from `jellyfin-plugin-simkl`:
-   - Scrobble watched anime items (episodes and movies) with resolved `anidb` IDs.
-   - Modular design supporting completion scrobbles (>= 80% on `PlaybackStop`) with hooks for future live scrobbling (`/scrobble/start`, `/scrobble/stop`).
-5. **Future Non-Anime Extensibility**: Design the ingestion and scrobbler pipeline so non-anime media (standard TV shows and movies) can seamlessly pass through directly via TVDB/TMDB IDs in subsequent phases.
+   - Translate Jellyfin TVDB/TMDB seasons and episodes into distinct AniList media entries and 1..N episode numbers, with automatic fallback to TVDB IDs.
+   - Translate Movie TMDB/IMDb/TVDB IDs to AniList movie entries, falling back to TMDB/IMDb.
+4. **Modernized Simkl & AniList Integration**:
+   - Scrobble watched anime items directly with native AniList IDs on both AniList and Simkl (`payload.anime`).
+   - For unmapped anime, fall back cleanly to TVDB (`payload.shows`) on Simkl while skipping AniList.
+   - Support completion scrobbles (>= 80% on `PlaybackStop`) with debounced batching and rate-limit recovery.
+5. **Non-Anime Media Pipeline**: Seamlessly pass standard TV shows and movies directly via TVDB, TMDB, and IMDb IDs.
 
 ---
 
@@ -32,17 +33,18 @@ flowchart TD
     Normalizer -->|Direct Movie/Show IDs| AnimeResolver[Anime Resolution Engine]
 
     subgraph Resolution_Pipeline["Anime Resolution Engine"]
-        AnimeResolver --> Ovr[1. anidb-mapping-overrides.json]
+        AnimeResolver --> Ovr[1. mapping-overrides.json]
         Ovr -->|Miss| Bridge[2. AniBridge mappings.min.json]
         Bridge -->|Miss| AList[3. Anime-Lists XML Fallback]
 
-        Ovr -->|Hit| Match[AniDB ID + Episode / Movie]
+        Ovr -->|Hit| Match[AniList ID / TVDB Fallback]
         Bridge -->|Hit| Match
         AList -->|Hit| Match
     end
 
-    Match --> Simkl[Simkl Scrobbler]
-    Simkl -->|Success| Done([Synced to Simkl])
+    Match --> Simkl[Simkl Batch Scrobbler]
+    Match --> AniList[AniList Scrobbler]
+    Simkl -->|Success| Done([Synced to Simkl & AniList])
     Simkl -->|Error / not_found| Ntfy[ntfy Notification Service]
 ```
 
@@ -67,10 +69,10 @@ flowchart TD
       - `"14-|2"`: 1 AniDB episode spans 2 TVDB episodes (e.g. multi-part episode).
       - `"1-2|-2"`: 2 AniDB episodes span 1 TVDB episode.
 
-### B. Local Overrides (`anidb-mapping-overrides.json`)
+### B. Local Overrides (`mapping-overrides.json`)
 
 - Evaluated with highest priority before any downloaded sources.
-- Uses identical AniBridge schema format to allow direct pasting of community mapping definitions.
+- Managed via the Web UI (`/overrides`) or directly in JSON, mapping TVDB shows/seasons/episodes to AniList IDs or explicit skips.
 
 ### C. Anime-Lists Fallback (`anime-list-full.xml`)
 
@@ -100,7 +102,7 @@ flowchart TD
 - [x] `anime/cache.ts`: Cache manager for `mappings.min.json` and `anime-list-full.xml` with local disk storage and TTL.
 - [x] `anime/anibridge.ts`: In-memory AniBridge indexing (TVDB show/season $\rightarrow$ AniDB spans; movie IDs $\rightarrow$ AniDB movie ID).
 - [x] `anime/animelist.ts`: Secondary fallback indexer from Anime-Lists XML.
-- [x] `anime/overrides.ts`: Loader for `anidb-mapping-overrides.json`.
+- [x] `anime/tvdb-overrides.ts`: Index and loader for `mapping-overrides.json`.
 - [x] `anime/resolver.ts`: Unified resolver resolving episodes and movies.
 - [x] `anime/resolver.test.ts`: Comprehensive test suite verifying standard shows, split cours, specials, movies, and overrides.
 

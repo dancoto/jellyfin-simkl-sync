@@ -1,4 +1,4 @@
-import type { AniBridgeEntry, AniBridgeSpan, AniDbSeasonSegment, EpisodeKind } from './models';
+import type { AniBridgeEntry, AniBridgeSpan, AnimeSeasonSegment, EpisodeKind } from './models';
 import { pair, rangeLength, readAllRanges, readTarget } from './range';
 import { resolveSeasonSegments } from './segments';
 
@@ -25,7 +25,7 @@ export class AniBridgeIndex {
   public readonly tvdbToTmdbShow: Map<string, string> = new Map();
   public readonly tmdbToTvdbShow: Map<string, string> = new Map();
 
-  private readonly placements: Map<string, AniDbSeasonSegment[]> = new Map();
+  private readonly placements: Map<string, AnimeSeasonSegment[]> = new Map();
 
   public static parse(jsonStringOrObject: string | Record<string, any>): AniBridgeIndex {
     const rawData =
@@ -306,7 +306,7 @@ export class AniBridgeIndex {
     return this.getEntriesForShow(entry.seriesKey);
   }
 
-  public placeSeason(siblings: AniBridgeEntry[], seasonNumber: number): AniDbSeasonSegment[] {
+  public placeSeason(siblings: AniBridgeEntry[], seasonNumber: number): AnimeSeasonSegment[] {
     if (seasonNumber < 1 || siblings.length === 0) {
       return [];
     }
@@ -318,14 +318,14 @@ export class AniBridgeIndex {
       return cached;
     }
 
-    const claimsByKind = new Map<EpisodeKind, AniDbSeasonSegment[]>();
+    const claimsByKind = new Map<EpisodeKind, AnimeSeasonSegment[]>();
 
     for (const entry of siblings) {
       for (const span of entry.spans) {
         if (span.season !== seasonNumber) continue;
 
         const epCount = rangeLength(span.inSeason) ?? 0;
-        const segment: AniDbSeasonSegment = {
+        const segment: AnimeSeasonSegment = {
           animeId: entry.animeId,
           firstEpisodeNumber: span.inSeason.start,
           episodeCount: epCount,

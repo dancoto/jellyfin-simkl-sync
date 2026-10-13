@@ -1,6 +1,6 @@
 # jellyfin-tracker-sync
 
-A lightweight, high-performance media sync webhook server built in TypeScript with Bun. It listens directly to Jellyfin playback webhook events, automatically routes between Anime (using AniBridge & AniDB cross-referencing) and standard TV Shows/Movies (using TVDB, TMDB, and IMDb IDs), and synchronizes watch history to your Simkl and AniList accounts.
+A lightweight, high-performance media sync webhook server built in TypeScript with Bun. It listens directly to Jellyfin playback webhook events, automatically routes between Anime (using AniBridge cross-referencing to AniList with TVDB fallback) and standard TV Shows/Movies (using TVDB, TMDB, and IMDb IDs), and synchronizes watch history to your Simkl and AniList accounts.
 
 It supports multi-user setups, sends failure notifications to a `ntfy` server, and is designed with a clean, decoupled service architecture.
 
@@ -19,7 +19,7 @@ flowchart TD
     main -->|Standard TV / Movies| simkl[simkl/ - Simkl Scrobbler]
 
     subgraph Anime_Engine["anime/ - 3-Tier Mapping Pipeline"]
-        resolver --> Ovr[1. anidb-mapping-overrides.json]
+        resolver --> Ovr[1. mapping-overrides.json]
         Ovr -->|Miss| Bridge[2. AniBridge mappings.min.json]
         Bridge -->|Miss| AList[3. Anime-Lists XML Fallback]
     end
@@ -34,11 +34,11 @@ flowchart TD
 - **[index.ts](./index.ts)**: The HTTP entry point using `Bun.serve`. Initializes the anime mapping indices in the background and dispatches `/webhook` requests asynchronously to prevent Jellyfin timeouts.
 - **[main.ts](./main.ts)**: The system orchestrator. Handles user credential verification, inspects library names, directs anime vs non-anime routing, coordinates watch history logging to Simkl and AniList, and intercepts failures to send push notifications.
 - **[anime/](./anime)**: The anime cross-referencing and mapping engine:
-  - **Overrides** (`anidb-mapping-overrides.json`): User-configured overrides evaluated with top priority.
-  - **AniBridge** (`mappings.min.json`): Fast, indexed bi-directional mappings translating TVDB/TMDB seasons into AniDB and AniList entries with support for continuous seasons, specials, multi-part ratios, and movies.
+  - **Overrides** (`mapping-overrides.json`): User-configured overrides managed via the Web UI (`/overrides`) or JSON, evaluated with top priority.
+  - **AniBridge** (`mappings.min.json`): Fast, indexed mappings translating TVDB/TMDB seasons into AniList entries with support for continuous seasons, specials, multi-part ratios, and movies.
   - **Anime-Lists** (`anime-list-full.xml`): Community XML fallback for unplaced titles.
 - **[jellyfin/](./jellyfin)**: Webhook normalizer and lightweight Jellyfin API client with in-memory caching to resolve series IDs and parent collection/library names if missing from the webhook payload.
-- **[simkl/](./simkl)**: Simkl API scrobbler. Syncs completed watch events (>= 80% progress or marked played) with resolved AniDB IDs for anime, or TVDB/TMDB/IMDb IDs for non-anime media.
+- **[simkl/](./simkl)**: Simkl API scrobbler. Syncs completed watch events (>= 80% progress or marked played) with native AniList entries (with TVDB fallback) for anime, or TVDB/TMDB/IMDb IDs for non-anime media.
 - **[anilist/](./anilist)**: AniList GraphQL scrobbler. Updates watch progress and list completion status on AniList with anti-regression protection, rate-limit backoff, and debouncing.
 - **[ntfy/](./ntfy)**: Generates and posts failure notifications to `ntfy` server topics.
 - **[shared/](./shared)**: Exposes typed configurations loaded dynamically from `config.toml` at startup.
@@ -48,13 +48,13 @@ flowchart TD
 ## ✨ Features
 
 - **Direct Jellyfin Webhook Ingestion**: Listens directly to Jellyfin's Generic Webhook destination.
-- **Dual Pipeline (Anime & Non-Anime)**: Automatically identifies Anime libraries (libraries containing `"Anime"` case-insensitively, e.g. `"Anime"`, `"Anime Movies"`) and routes them through the AniDB mapping engine, while routing standard TV Shows and Movies directly via TVDB, TMDB, and IMDb IDs.
-- **AniBridge Cross-Referencing**: Translates continuous TVDB season numberings into distinct AniDB anime entries and 1..N episode numbers automatically.
-- **Custom Overrides**: Drop an `anidb-mapping-overrides.json` file in the root or config folder to fix or customize any anime mapping using the standard AniBridge schema.
+- **Dual Pipeline (Anime & Non-Anime)**: Automatically identifies Anime libraries (libraries containing `"Anime"` case-insensitively, e.g. `"Anime"`, `"Anime Movies"`) and routes them through the anime mapping engine (AniList primary with TVDB fallback), while routing standard TV Shows and Movies directly via TVDB, TMDB, and IMDb IDs.
+- **AniBridge Cross-Referencing**: Translates continuous TVDB season numberings into distinct AniList media entries and 1..N episode numbers automatically.
+- **Custom Overrides & Web UI**: Manage manual overrides at `http://localhost:3000/overrides` or directly in `mapping-overrides.json`.
 - **Automated Background Refresh**: Periodically checks and hot-swaps expired mapping caches in the background every 24 hours without server restarts, and supports manual on-demand reloads via `POST /mappings/refresh`.
 - **Strict Episode & Movie Scrobbling**: Only scrobbles media once playback finishes (reaching $\ge 80\%$ or marked played).
 - **Multi-User Friendly**: Supports multi-user households by mapping different Jellyfin usernames directly to their respective Simkl tokens.
-- **Failure Alerts via ntfy**: Sends clickable link alerts to your configured `ntfy` topic if a title is missing or unmapped in Simkl.
+- **Failure Alerts via ntfy**: Sends clickable link alerts to your configured `ntfy` topic if a regular episode is missing or unmapped in Simkl.
 
 ---
 
@@ -138,16 +138,32 @@ Open your browser to **`http://<your-server-ip>:3000/`** (or `/auth`):
 
 ### 4. Mapping Overrides (Optional)
 
-You can place an `anidb-mapping-overrides.json` file in the root or configuration directory using the AniBridge format:
+You can manage overrides using the built-in Web Editor at **`http://<your-server-ip>:3000/overrides`**, or directly edit `mapping-overrides.json` in the root or configuration directory:
 
 ```json
 {
-  "anidb:665:O": { "tvdb_show:70873:s3": { "1-13": "1-13" } },
-  "anidb:7777:R": { "tvdb_show:441190:s4": { "1-12": "1-12" } }
+  "70861": {
+    "title": "Love Hina",
+    "seasons": {
+      "1": {
+        "episodes": {
+          "25": {
+            "name": "Final Special",
+            "anilistId": null
+          },
+          "26": {
+            "name": "Christmas Special",
+            "anilistId": 444,
+            "anilistEpisode": 1
+          }
+        }
+      }
+    }
+  }
 }
 ```
 
-### 4. Running Locally
+### 5. Running Locally
 
 Start development server with live reload:
 

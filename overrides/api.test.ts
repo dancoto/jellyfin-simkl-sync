@@ -9,6 +9,12 @@ describe('Overrides Web Endpoints', () => {
     const html = await res.text();
     expect(html).toContain('data-filter="missing-anilist"');
     expect(html).toContain('Only Missing AniList');
+    expect(html).toContain('sort-select');
+    expect(html).toContain('Most Missing AniList');
+    expect(html).toContain('data-filter="skipped-anilist"');
+    expect(html).toContain('stat-skipped-anilist');
+    expect(html).toContain('toggleEpSkipAniList');
+    expect(html).toContain('skipUnmappedSeasonAniList');
   });
 
   test('handleGetOverrides should return 200 with overrides and filePath', async () => {

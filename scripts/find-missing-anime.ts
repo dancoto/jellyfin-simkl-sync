@@ -28,9 +28,7 @@ interface MissingEpisodeEntry {
   seriesTmdbId?: string;
   episodeTvdbId?: string;
   episodeTmdbId?: string;
-  status: 'missing_anidb' | 'missing_anilist' | 'missing_tvdb';
-  resolvedAniDbId?: string;
-  resolvedAniDbEpisode?: number;
+  status: 'missing_anilist' | 'missing_tvdb';
   resolvedAniListId?: number;
   resolvedAniListEpisode?: number;
 }
@@ -40,7 +38,6 @@ interface SeriesSummary {
   seriesTvdbId?: string;
   seriesTmdbId?: string;
   missingCount: number;
-  missingAniDbCount: number;
   missingAniListCount: number;
   episodes: MissingEpisodeEntry[];
 }
@@ -53,7 +50,6 @@ interface AuditReport {
     totalFullyMatched: number;
     totalSkipped: number;
     totalUnresolved: number;
-    missingAniDbCount: number;
     missingAniListCount: number;
     missingTvdbCount: number;
     affectedSeriesCount: number;
@@ -221,7 +217,6 @@ export const runAudit = async () => {
 
       const tvdbId = sProv.tvdb ?? epProv.tvdb;
       const tmdbId = sProv.tmdb ?? epProv.tmdb;
-      const anidbId = sProv.anidb ?? epProv.anidb;
       const anilistId = sProv.anilist ?? epProv.anilist;
 
       if (!tvdbId) {
@@ -243,7 +238,6 @@ export const runAudit = async () => {
         {
           tvdbId,
           tmdbId,
-          anidbId,
           anilistId,
         },
         seasonNumber,
@@ -255,12 +249,11 @@ export const runAudit = async () => {
         continue;
       }
 
-      const hasAniDb = Boolean(resolved?.animeId) || Boolean(resolved?.skipAniDb);
       const hasAniList = Boolean(resolved?.anilist?.mediaId) || Boolean(resolved?.skipAniList);
 
-      if (hasAniDb && hasAniList) {
+      if (hasAniList) {
         // Matched or intentionally skipped! Exclude from output as requested.
-        if (resolved?.skipAniDb || resolved?.skipAniList) {
+        if (resolved?.skipAniList) {
           skippedCount++;
         } else {
           fullyMatchedCount++;
@@ -275,9 +268,7 @@ export const runAudit = async () => {
           seriesTmdbId: sProv.tmdb,
           episodeTvdbId: epProv.tvdb,
           episodeTmdbId: epProv.tmdb,
-          status: !hasAniDb ? 'missing_anidb' : 'missing_anilist',
-          resolvedAniDbId: resolved?.animeId || undefined,
-          resolvedAniDbEpisode: resolved?.episodeNumber,
+          status: !sProv.tvdb ? 'missing_tvdb' : 'missing_anilist',
           resolvedAniListId: resolved?.anilist?.mediaId,
           resolvedAniListEpisode: resolved?.anilist?.episodeNumber,
         });
@@ -298,14 +289,11 @@ export const runAudit = async () => {
 
   // Group by series
   const seriesGroups = new Map<string, SeriesSummary>();
-  let missingAniDbCount = 0;
   let missingAniListCount = 0;
   let missingTvdbCount = 0;
 
   for (const ep of unresolvedEpisodes) {
-    const hasAniDb = Boolean(ep.resolvedAniDbId);
     const hasAniList = Boolean(ep.resolvedAniListId);
-    if (!hasAniDb) missingAniDbCount++;
     if (!hasAniList) missingAniListCount++;
     if (ep.status === 'missing_tvdb') missingTvdbCount++;
 
@@ -316,7 +304,6 @@ export const runAudit = async () => {
         seriesTvdbId: ep.seriesTvdbId,
         seriesTmdbId: ep.seriesTmdbId,
         missingCount: 0,
-        missingAniDbCount: 0,
         missingAniListCount: 0,
         episodes: [],
       };
@@ -324,7 +311,6 @@ export const runAudit = async () => {
     }
 
     group.missingCount++;
-    if (ep.status === 'missing_anidb') group.missingAniDbCount++;
     if (ep.status === 'missing_anilist') group.missingAniListCount++;
     group.episodes.push(ep);
   }
@@ -341,7 +327,6 @@ export const runAudit = async () => {
       totalFullyMatched: fullyMatchedCount,
       totalSkipped: skippedCount,
       totalUnresolved: unresolvedEpisodes.length,
-      missingAniDbCount,
       missingAniListCount,
       missingTvdbCount,
       affectedSeriesCount: unresolvedBySeries.length,
@@ -384,8 +369,6 @@ export const runAudit = async () => {
         for (const ep of eps) {
           episodesObj[String(ep.episodeNumber)] = {
             name: ep.episodeName,
-            anidbId: ep.resolvedAniDbId ?? null,
-            anidbEpisode: ep.resolvedAniDbEpisode ?? (ep.resolvedAniDbId ? ep.episodeNumber : null),
             anilistId: ep.resolvedAniListId ?? null,
             anilistEpisode:
               ep.resolvedAniListEpisode ?? (ep.resolvedAniListId ? ep.episodeNumber : null),
@@ -410,7 +393,6 @@ export const runAudit = async () => {
   console.log(`Total episodes scanned:       ${startIndex}`);
   console.log(`Fully matched (excluded):     ${fullyMatchedCount}`);
   console.log(`Total unresolved saved:       ${unresolvedEpisodes.length}`);
-  console.log(`  - Missing AniDB:            ${missingAniDbCount}`);
   console.log(`  - Missing AniList:          ${missingAniListCount}`);
   console.log(`  - Missing TVDB in Jellyfin: ${missingTvdbCount}`);
   console.log(`Affected series:              ${unresolvedBySeries.length}`);

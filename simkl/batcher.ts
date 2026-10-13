@@ -6,16 +6,22 @@ import type { SyncResponse } from './models';
 export type ScrobbleQueueItem =
   | {
       kind: 'anime_episode';
-      animeId: string;
+      anilistId?: number;
+      anilistEpisode?: number;
       episodeNumber: number;
       isSpecial: boolean;
       seriesName?: string;
       episodeName?: string;
+      tvdbId?: string;
+      tmdbId?: string;
+      seasonNumber?: number;
     }
   | {
       kind: 'anime_movie';
-      animeId: string;
+      anilistId?: number;
       name: string;
+      tmdbId?: string;
+      tvdbId?: string;
     }
   | {
       kind: 'standard_episode';
@@ -28,6 +34,7 @@ export type ScrobbleQueueItem =
         imdb?: string;
       };
       episodeName?: string;
+      isSpecial?: boolean;
     }
   | {
       kind: 'standard_movie';
@@ -53,6 +60,11 @@ export interface SyncPayload {
       episodes: Array<{ number: number }>;
     }>;
   }>;
+  anime?: Array<{
+    title?: string;
+    ids: Record<string, any>;
+    episodes: Array<{ number: number }>;
+  }>;
 }
 
 export interface NotFoundMeta {
@@ -61,6 +73,7 @@ export interface NotFoundMeta {
   link: string;
   mediaType: string;
   isAnime: boolean;
+  isSpecial?: boolean;
 }
 
 /**
@@ -82,41 +95,125 @@ export const buildSyncPayload = (
     }
   >();
 
+  // Map of animeKey -> { title?, ids, episodes: Set<episodeNumber> }
+  const animeMap = new Map<
+    string,
+    {
+      title?: string;
+      ids: Record<string, any>;
+      episodes: Set<number>;
+    }
+  >();
+
   // Map of movieKey -> { title?: string, ids: Record<string, any> }
   const moviesMap = new Map<string, { title?: string; ids: Record<string, any> }>();
 
   for (const item of items) {
     if (item.kind === 'anime_episode') {
-      const showKey = `anidb:${item.animeId}`;
-      let showEntry = showsMap.get(showKey);
-      if (!showEntry) {
-        showEntry = {
-          title: item.seriesName,
-          ids: { anidb: item.animeId },
-          seasons: new Map(),
+      if (item.anilistId) {
+        const animeKey = `anilist:${item.anilistId}`;
+        let animeEntry = animeMap.get(animeKey);
+        if (!animeEntry) {
+          const ids: Record<string, any> = { anilist: String(item.anilistId) };
+          if (item.tvdbId) ids.tvdb = item.tvdbId;
+          if (item.tmdbId) ids.tmdb = item.tmdbId;
+          animeEntry = {
+            title: item.seriesName,
+            ids,
+            episodes: new Set(),
+          };
+          animeMap.set(animeKey, animeEntry);
+        }
+        animeEntry.episodes.add(item.anilistEpisode ?? item.episodeNumber);
+
+        const meta: NotFoundMeta = {
+          id: String(item.anilistId),
+          title: item.seriesName
+            ? `${item.seriesName} - ${item.episodeName}`
+            : (item.episodeName ?? 'Anime'),
+          link: `https://anilist.co/anime/${item.anilistId}`,
+          mediaType: 'anime series',
+          isAnime: true,
+          isSpecial: item.isSpecial,
         };
-        showsMap.set(showKey, showEntry);
+        notFoundMap.set(String(item.anilistId), meta);
+        if (item.seriesName) notFoundMap.set(item.seriesName, meta);
+        if (item.tvdbId) notFoundMap.set(item.tvdbId, meta);
+      } else {
+        const showKey = item.tvdbId
+          ? `tvdb:${item.tvdbId}`
+          : `title:${item.seriesName ?? 'unknown'}`;
+        let showEntry = showsMap.get(showKey);
+        if (!showEntry) {
+          const ids: Record<string, any> = {};
+          if (item.tvdbId) ids.tvdb = item.tvdbId;
+          if (item.tmdbId) ids.tmdb = item.tmdbId;
+          showEntry = {
+            title: item.seriesName,
+            ids,
+            seasons: new Map(),
+          };
+          showsMap.set(showKey, showEntry);
+        }
+
+        const seasonNum = item.seasonNumber ?? (item.isSpecial ? 0 : 1);
+        let episodesSet = showEntry.seasons.get(seasonNum);
+        if (!episodesSet) {
+          episodesSet = new Set();
+          showEntry.seasons.set(seasonNum, episodesSet);
+        }
+        episodesSet.add(item.episodeNumber);
+
+        const fallbackId = item.tvdbId ?? item.seriesName ?? 'unknown';
+        const meta: NotFoundMeta = {
+          id: fallbackId,
+          title: item.seriesName
+            ? `${item.seriesName} - ${item.episodeName}`
+            : (item.episodeName ?? 'Anime'),
+          link: item.tvdbId
+            ? `https://thetvdb.com/dereferrer/series/${item.tvdbId}`
+            : `https://simkl.com/search/?q=${encodeURIComponent(item.seriesName ?? item.episodeName ?? '')}`,
+          mediaType: 'anime series',
+          isAnime: true,
+          isSpecial: item.isSpecial,
+        };
+        notFoundMap.set(fallbackId, meta);
+        if (item.seriesName) notFoundMap.set(item.seriesName, meta);
+        if (item.tvdbId) notFoundMap.set(item.tvdbId, meta);
+      }
+    } else if (item.kind === 'anime_movie') {
+      const movieKey = item.anilistId
+        ? `anilist:${item.anilistId}`
+        : item.tmdbId
+          ? `tmdb:${item.tmdbId}`
+          : `title:${item.name}`;
+      let movieEntry = moviesMap.get(movieKey);
+      if (!movieEntry) {
+        const ids: Record<string, any> = {};
+        if (item.anilistId) ids.anilist = String(item.anilistId);
+        if (item.tmdbId) ids.tmdb = item.tmdbId;
+        if (item.tvdbId) ids.tvdb = item.tvdbId;
+        moviesMap.set(movieKey, {
+          title: item.name,
+          ids,
+        });
       }
 
-      const seasonNum = item.isSpecial ? 0 : 1;
-      let episodesSet = showEntry.seasons.get(seasonNum);
-      if (!episodesSet) {
-        episodesSet = new Set();
-        showEntry.seasons.set(seasonNum, episodesSet);
-      }
-      episodesSet.add(item.episodeNumber);
-
+      const id = item.anilistId ? String(item.anilistId) : (item.tmdbId ?? item.name);
       const meta: NotFoundMeta = {
-        id: item.animeId,
-        title: item.seriesName
-          ? `${item.seriesName} - ${item.episodeName}`
-          : (item.episodeName ?? 'Anime'),
-        link: `https://anidb.net/anime/${item.animeId}`,
-        mediaType: 'anime series',
+        id,
+        title: item.name,
+        link: item.anilistId
+          ? `https://anilist.co/anime/${item.anilistId}`
+          : `https://simkl.com/search/?q=${encodeURIComponent(item.name)}`,
+        mediaType: 'anime movie',
         isAnime: true,
+        isSpecial: false,
       };
-      notFoundMap.set(item.animeId, meta);
-      if (item.seriesName) notFoundMap.set(item.seriesName, meta);
+      notFoundMap.set(id, meta);
+      if (item.name) notFoundMap.set(item.name, meta);
+      if (item.tmdbId) notFoundMap.set(item.tmdbId, meta);
+      if (item.tvdbId) notFoundMap.set(item.tvdbId, meta);
     } else if (item.kind === 'standard_episode') {
       const showKey =
         (item.ids.tvdb && `tvdb:${item.ids.tvdb}`) ||
@@ -156,29 +253,13 @@ export const buildSyncPayload = (
         link: `https://simkl.com/search/?q=${encodeURIComponent(item.seriesName ?? item.episodeName ?? '')}`,
         mediaType: 'series',
         isAnime: false,
+        isSpecial: item.isSpecial ?? item.seasonNumber === 0,
       };
       notFoundMap.set(fallbackId, meta);
       if (item.ids.tvdb) notFoundMap.set(item.ids.tvdb, meta);
       if (item.ids.tmdb) notFoundMap.set(item.ids.tmdb, meta);
       if (item.ids.imdb) notFoundMap.set(item.ids.imdb, meta);
       if (item.seriesName) notFoundMap.set(item.seriesName, meta);
-    } else if (item.kind === 'anime_movie') {
-      const movieKey = `anidb:${item.animeId}`;
-      if (!moviesMap.has(movieKey)) {
-        moviesMap.set(movieKey, {
-          title: item.name,
-          ids: { anidb: item.animeId },
-        });
-      }
-      const meta: NotFoundMeta = {
-        id: item.animeId,
-        title: item.name,
-        link: `https://anidb.net/anime/${item.animeId}`,
-        mediaType: 'anime movie',
-        isAnime: true,
-      };
-      notFoundMap.set(item.animeId, meta);
-      if (item.name) notFoundMap.set(item.name, meta);
     } else if (item.kind === 'standard_movie') {
       const movieKey =
         (item.ids.tmdb && `tmdb:${item.ids.tmdb}`) ||
@@ -241,6 +322,16 @@ export const buildSyncPayload = (
         seasons,
       };
     });
+  }
+
+  if (animeMap.size > 0) {
+    payload.anime = Array.from(animeMap.values()).map((a) => ({
+      title: a.title,
+      ids: a.ids,
+      episodes: Array.from(a.episodes)
+        .sort((a, b) => a - b)
+        .map((epNum) => ({ number: epNum })),
+    }));
   }
 
   return { payload, notFoundMap };
@@ -315,6 +406,7 @@ export const sendSyncPayload = async (
         ...(data.not_found?.movies || []),
         ...(data.not_found?.shows || []),
         ...(data.not_found?.episodes || []),
+        ...((data.not_found as any)?.anime || []),
       ];
 
       const notifiedIds = new Set<string>();
@@ -322,7 +414,13 @@ export const sendSyncPayload = async (
         let meta: NotFoundMeta | undefined;
 
         if (typeof nf === 'object' && nf) {
-          const candidateKeys = [nf.ids?.anidb, nf.ids?.tvdb, nf.ids?.tmdb, nf.ids?.imdb, nf.title]
+          const candidateKeys = [
+            nf.ids?.anilist,
+            nf.ids?.tvdb,
+            nf.ids?.tmdb,
+            nf.ids?.imdb,
+            nf.title,
+          ]
             .filter(Boolean)
             .map(String);
 
@@ -338,16 +436,25 @@ export const sendSyncPayload = async (
 
         if (meta && !notifiedIds.has(meta.id)) {
           notifiedIds.add(meta.id);
-          sendNotification({
-            title: `Failed to update Simkl for ${meta.mediaType}`,
-            message: `Item: ${meta.title}\nID: ${meta.id}\nLink: ${meta.link}`,
-            priority: 4,
-          });
+          if (meta.isSpecial) {
+            logger.debug(
+              `[Batch Scrobble] Suppressing Simkl failure notification for special: ${meta.title} (${meta.id})`,
+            );
+          } else {
+            sendNotification({
+              title: `Failed to update Simkl for ${meta.mediaType}`,
+              message: `Item: ${meta.title}\nID: ${meta.id}\nLink: ${meta.link}`,
+              priority: 4,
+            });
+          }
         }
       }
 
       const addedCount =
-        (data.added?.movies || 0) + (data.added?.episodes || 0) + (data.added?.shows || 0);
+        (data.added?.movies || 0) +
+        (data.added?.episodes || 0) +
+        (data.added?.shows || 0) +
+        ((data.added as any)?.anime || 0);
       return { success: true, addedCount };
     } catch (error) {
       if (attempt < maxRetries) {

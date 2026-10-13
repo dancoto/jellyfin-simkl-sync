@@ -16,6 +16,7 @@ export const renderOverridesHtml = (): string => {
       --accent-hover: #0284c7;
       --anilist: #02a9ff;
       --anilist-hover: #008ecc;
+      --anilist-pink: #f472b6;
       --success: #10b981;
       --success-bg: rgba(16, 185, 129, 0.15);
       --danger: #ef4444;
@@ -38,23 +39,28 @@ export const renderOverridesHtml = (): string => {
     .nav-btn:hover { color: #fff; border-color: var(--accent); }
 
     /* Stats Banner */
-    .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 0.75rem; }
+    .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 0.75rem; }
     .stat-card { background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 10px; padding: 0.9rem 1.1rem; cursor: pointer; transition: all 0.2s; }
     .stat-card:hover { border-color: var(--accent); background: rgba(56, 189, 248, 0.04); }
     .stat-label { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); margin-bottom: 0.25rem; }
     .stat-val { font-size: 1.4rem; font-weight: 700; color: #fff; }
-    .stat-val.warning { color: var(--warning); }
+    .stat-val.anilist { color: var(--anilist-pink); }
+    .stat-val.anilist-skipped { color: #c084fc; }
     .stat-val.success { color: var(--success); }
-    .stat-val.anilist { color: #f472b6; }
 
     /* Controls Bar */
     .controls-bar { background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 10px; padding: 0.85rem 1rem; display: flex; gap: 0.75rem; flex-wrap: wrap; align-items: center; justify-content: space-between; }
-    .search-box { flex: 1; min-width: 250px; position: relative; }
+    .search-box { flex: 1; min-width: 230px; position: relative; }
     .search-box input { width: 100%; background: var(--input-bg); border: 1px solid var(--card-border); color: #fff; padding: 0.6rem 0.85rem 0.6rem 2.2rem; border-radius: 8px; font-size: 0.9rem; outline: none; transition: border-color 0.2s; }
     .search-box input:focus { border-color: var(--accent); }
     .search-icon { position: absolute; left: 0.75rem; top: 50%; transform: translateY(-50%); color: var(--text-muted); font-size: 0.85rem; }
 
-    .filter-tabs { display: flex; gap: 0.4rem; flex-wrap: wrap; }
+    .sort-box { display: flex; align-items: center; gap: 0.4rem; }
+    .sort-label { font-size: 0.82rem; color: var(--text-muted); font-weight: 600; white-space: nowrap; }
+    .sort-select { background: var(--input-bg); border: 1px solid var(--card-border); color: #fff; padding: 0.5rem 0.75rem; border-radius: 6px; font-size: 0.84rem; font-weight: 600; outline: none; cursor: pointer; transition: border-color 0.2s; }
+    .sort-select:focus { border-color: var(--accent); }
+
+    .filter-tabs { display: flex; gap: 0.4rem; flex-wrap: wrap; align-items: center; }
     .filter-btn { background: var(--input-bg); border: 1px solid var(--card-border); color: var(--text-muted); padding: 0.45rem 0.8rem; border-radius: 6px; font-size: 0.82rem; font-weight: 600; cursor: pointer; transition: all 0.2s; }
     .filter-btn.active { background: var(--accent); color: #0b0f19; border-color: var(--accent); }
 
@@ -77,8 +83,8 @@ export const renderOverridesHtml = (): string => {
     .badge-search:hover { color: #fff; background: rgba(255, 255, 255, 0.15); }
     .badge-missing { background: var(--warning-bg); color: #fbbf24; }
     .badge-ok { background: var(--success-bg); color: #34d399; }
-    .badge-anilist { background: rgba(236, 72, 153, 0.15); color: #f472b6; border: 1px solid rgba(236, 72, 153, 0.3); }
-    .badge-anidb { background: rgba(245, 158, 11, 0.15); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.3); }
+    .badge-anilist { background: rgba(236, 72, 153, 0.15); color: var(--anilist-pink); border: 1px solid rgba(236, 72, 153, 0.3); }
+    .badge-anilist-skipped { background: rgba(192, 132, 252, 0.15); color: #c084fc; border: 1px solid rgba(192, 132, 252, 0.3); }
 
     .series-actions { display: flex; align-items: center; gap: 0.6rem; }
     .btn { display: inline-flex; align-items: center; justify-content: center; gap: 0.4rem; padding: 0.45rem 0.9rem; border-radius: 6px; font-weight: 600; font-size: 0.82rem; cursor: pointer; border: none; transition: all 0.2s; }
@@ -86,9 +92,9 @@ export const renderOverridesHtml = (): string => {
     .btn-primary:hover { background: var(--accent-hover); color: #fff; }
     .btn-secondary { background: rgba(255, 255, 255, 0.08); color: #f1f5f9; border: 1px solid rgba(255, 255, 255, 0.1); }
     .btn-secondary:hover { background: rgba(255, 255, 255, 0.15); }
+    .btn-anilist-skipped { background: rgba(192, 132, 252, 0.2); color: #d8b4fe; border: 1px solid rgba(192, 132, 252, 0.4); }
+    .btn-anilist-skipped:hover { background: rgba(192, 132, 252, 0.35); color: #fff; }
     .btn-sm { padding: 0.35rem 0.65rem; font-size: 0.78rem; }
-    .btn-danger { background: var(--danger-bg); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.3); }
-    .btn-danger:hover { background: rgba(239, 68, 68, 0.3); }
 
     .chevron { transition: transform 0.2s; font-size: 0.8rem; color: var(--text-muted); }
     .chevron.open { transform: rotate(180deg); }
@@ -100,7 +106,7 @@ export const renderOverridesHtml = (): string => {
     /* Season Section */
     .season-section { margin-bottom: 1.25rem; }
     .season-section:last-child { margin-bottom: 0; }
-    .season-header { font-size: 0.92rem; font-weight: 700; color: #fff; margin-bottom: 0.6rem; display: flex; align-items: center; justify-content: space-between; }
+    .season-header { font-size: 0.92rem; font-weight: 700; color: #fff; margin-bottom: 0.6rem; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.5rem; }
     
     .batch-fill-bar { background: rgba(0,0,0,0.25); border: 1px solid var(--card-border); border-radius: 8px; padding: 0.6rem 0.85rem; margin-bottom: 0.75rem; display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; font-size: 0.82rem; }
     .batch-fill-bar span { color: var(--text-muted); font-weight: 500; }
@@ -113,18 +119,19 @@ export const renderOverridesHtml = (): string => {
     .ep-table tr:last-child td { border-bottom: none; }
     .ep-table tr.row-highlight-anilist { background: rgba(236, 72, 153, 0.07); }
     .ep-table tr.row-highlight-anilist td:first-child { border-left: 3px solid #ec4899; }
-    .ep-table tr.row-highlight-anidb { background: rgba(245, 158, 11, 0.07); }
-    .ep-table tr.row-highlight-anidb td:first-child { border-left: 3px solid #f59e0b; }
+    .ep-table tr.row-skipped-anilist { background: rgba(192, 132, 252, 0.04); }
+    .ep-table tr.row-skipped-anilist .ep-name { color: #d8b4fe; opacity: 0.85; }
 
     .ep-num { font-weight: 700; color: #fff; width: 60px; }
-    .ep-name { max-width: 320px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #cbd5e1; }
+    .ep-name { max-width: 420px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #cbd5e1; }
     .ep-name:hover { white-space: normal; word-break: break-word; }
 
     .id-input-group { display: flex; align-items: center; gap: 0.35rem; }
-    .id-input { background: var(--input-bg); border: 1px solid var(--card-border); color: #fff; padding: 0.35rem 0.55rem; border-radius: 6px; font-size: 0.84rem; width: 110px; font-family: monospace; outline: none; transition: border-color 0.15s; }
+    .id-input { background: var(--input-bg); border: 1px solid var(--card-border); color: #fff; padding: 0.35rem 0.55rem; border-radius: 6px; font-size: 0.84rem; width: 130px; font-family: monospace; outline: none; transition: border-color 0.15s; }
     .id-input.null-val { color: #64748b; font-style: italic; }
+    .id-input.skipped-val { color: #c084fc; font-style: italic; opacity: 0.8; }
     .id-input:focus { border-color: var(--accent); }
-    .ep-sub-input { width: 55px; }
+    .ep-sub-input { width: 60px; }
 
     /* Floating Save Bar */
     .save-banner { position: fixed; bottom: 1.5rem; right: 1.5rem; background: #1e293b; border: 1px solid var(--card-border); border-radius: 12px; padding: 0.85rem 1.25rem; display: none; align-items: center; gap: 1rem; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5); z-index: 100; }
@@ -143,7 +150,7 @@ export const renderOverridesHtml = (): string => {
   <div class="container">
     <header>
       <h1><span>🌸</span> Jellyfin Anime Mapping Overrides</h1>
-      <p>Fill in missing AniDB & AniList IDs or leave null to explicitly skip that flow</p>
+      <p>Direct TVDB to AniList mappings for Simkl and AniList tracker synchronization</p>
       <nav>
         <a href="/" class="nav-btn"><span>👥</span> User Accounts</a>
         <a href="/overrides" class="nav-btn active"><span>🌸</span> Mapping Overrides</a>
@@ -156,17 +163,13 @@ export const renderOverridesHtml = (): string => {
         <div class="stat-label">Total Shows in Overrides</div>
         <div class="stat-val" id="stat-total-shows">-</div>
       </div>
-      <div class="stat-card" onclick="setFilter('has-nulls')" title="Filter by Shows with nulls">
-        <div class="stat-label">Episodes with nulls</div>
-        <div class="stat-val warning" id="stat-null-episodes">-</div>
-      </div>
-      <div class="stat-card" onclick="setFilter('missing-anidb')" title="Filter by Missing AniDB">
-        <div class="stat-label">Missing AniDB (null)</div>
-        <div class="stat-val" id="stat-missing-anidb">-</div>
-      </div>
-      <div class="stat-card" onclick="setFilter('missing-anilist')" title="Filter by Only Missing AniList">
-        <div class="stat-label">Missing AniList (null)</div>
+      <div class="stat-card" onclick="setFilter('missing-anilist'); setSort('missing-desc');" title="Filter by Only Missing AniList & Sort by Most Missing">
+        <div class="stat-label">Missing AniList (Unmapped)</div>
         <div class="stat-val anilist" id="stat-missing-anilist">-</div>
+      </div>
+      <div class="stat-card" onclick="setFilter('skipped-anilist')" title="Filter by Shows with Skipped AniList Episodes">
+        <div class="stat-label">Skipped AniList Episodes</div>
+        <div class="stat-val anilist-skipped" id="stat-skipped-anilist">-</div>
       </div>
       <div class="stat-card" onclick="setFilter('complete')" title="Filter by Completed">
         <div class="stat-label">Fully Mapped</div>
@@ -180,11 +183,19 @@ export const renderOverridesHtml = (): string => {
         <span class="search-icon">🔍</span>
         <input type="text" id="search-input" placeholder="Search by title or TVDB ID..." oninput="handleSearch()">
       </div>
+      <div class="sort-box">
+        <span class="sort-label">Sort:</span>
+        <select id="sort-select" class="sort-select" onchange="setSort(this.value)">
+          <option value="missing-desc">🌸 Most Missing AniList</option>
+          <option value="missing-asc">Least Missing AniList</option>
+          <option value="title-asc">Title (A → Z)</option>
+          <option value="default">Default (TVDB ID)</option>
+        </select>
+      </div>
       <div class="filter-tabs">
         <button class="filter-btn active" data-filter="all" onclick="setFilter('all')">All Shows</button>
-        <button class="filter-btn" data-filter="has-nulls" onclick="setFilter('has-nulls')">Has nulls</button>
         <button class="filter-btn" data-filter="missing-anilist" onclick="setFilter('missing-anilist')">🌸 Only Missing AniList</button>
-        <button class="filter-btn" data-filter="missing-anidb" onclick="setFilter('missing-anidb')">⚡ Missing AniDB</button>
+        <button class="filter-btn" data-filter="skipped-anilist" onclick="setFilter('skipped-anilist')">🌸 Skipped AniList</button>
         <button class="filter-btn" data-filter="complete" onclick="setFilter('complete')">Completed</button>
         <button class="btn btn-secondary btn-sm" onclick="toggleAllCards()" id="toggle-all-btn">Expand All</button>
       </div>
@@ -209,8 +220,10 @@ export const renderOverridesHtml = (): string => {
     let overridesData = {};
     let dirtyShows = new Set();
     let currentFilter = 'all';
+    let currentSort = 'missing-desc';
     let searchQuery = '';
     let allExpanded = false;
+    let openCards = new Set();
 
     async function loadOverrides() {
       try {
@@ -226,27 +239,25 @@ export const renderOverridesHtml = (): string => {
       }
     }
 
+    function isEpMissingAniList(ep) {
+      if (ep.skipAniList) return false;
+      return ep.anilistId === null || ep.anilistId === undefined || ep.anilistId === '';
+    }
+
     function updateStats() {
       let totalShows = 0;
-      let totalEpisodes = 0;
-      let nullEpisodes = 0;
-      let missingAniDb = 0;
       let missingAniList = 0;
+      let skippedAniList = 0;
       let fullyMapped = 0;
 
       for (const [tvdbId, show] of Object.entries(overridesData)) {
         totalShows++;
         for (const [seasonNum, season] of Object.entries(show.seasons || {})) {
           for (const [epNum, ep] of Object.entries(season.episodes || {})) {
-            totalEpisodes++;
-            const isAniDbNull = ep.anidbId === null || ep.anidbId === undefined || ep.anidbId === '';
-            const isAniListNull = ep.anilistId === null || ep.anilistId === undefined || ep.anilistId === '';
-            
-            if (isAniDbNull) missingAniDb++;
-            if (isAniListNull) missingAniList++;
-
-            if (isAniDbNull || isAniListNull) {
-              nullEpisodes++;
+            if (ep.skipAniList) {
+              skippedAniList++;
+            } else if (ep.anilistId === null || ep.anilistId === undefined || ep.anilistId === '') {
+              missingAniList++;
             } else {
               fullyMapped++;
             }
@@ -255,9 +266,8 @@ export const renderOverridesHtml = (): string => {
       }
 
       document.getElementById('stat-total-shows').innerText = totalShows;
-      document.getElementById('stat-null-episodes').innerText = nullEpisodes;
-      document.getElementById('stat-missing-anidb').innerText = missingAniDb;
       document.getElementById('stat-missing-anilist').innerText = missingAniList;
+      document.getElementById('stat-skipped-anilist').innerText = skippedAniList;
       document.getElementById('stat-fully-mapped').innerText = fullyMapped;
     }
 
@@ -271,6 +281,38 @@ export const renderOverridesHtml = (): string => {
         .replace(/'/g, '&#039;');
     }
 
+    function countMissingAniListInShow(show) {
+      let count = 0;
+      for (const season of Object.values(show.seasons || {})) {
+        for (const ep of Object.values(season.episodes || {})) {
+          if (isEpMissingAniList(ep)) {
+            count++;
+          }
+        }
+      }
+      return count;
+    }
+
+    function countSkippedAniListInShow(show) {
+      let count = 0;
+      for (const season of Object.values(show.seasons || {})) {
+        for (const ep of Object.values(season.episodes || {})) {
+          if (ep.skipAniList) {
+            count++;
+          }
+        }
+      }
+      return count;
+    }
+
+    function hasMissingAniListInShow(show) {
+      return countMissingAniListInShow(show) > 0;
+    }
+
+    function hasSkippedAniListInShow(show) {
+      return countSkippedAniListInShow(show) > 0;
+    }
+
     function renderSeriesCards() {
       const container = document.getElementById('series-container');
       const entries = Object.entries(overridesData);
@@ -281,30 +323,44 @@ export const renderOverridesHtml = (): string => {
       }
 
       // Filter and search
-      const filtered = entries.filter(([tvdbId, show]) => {
+      let filtered = entries.filter(([tvdbId, show]) => {
         const titleMatch = (show.title || '').toLowerCase().includes(searchQuery.toLowerCase()) || tvdbId.includes(searchQuery);
         if (!titleMatch) return false;
 
-        if (currentFilter === 'has-nulls') {
-          return hasNullsInShow(show);
-        } else if (currentFilter === 'missing-anilist') {
+        if (currentFilter === 'missing-anilist') {
           return hasMissingAniListInShow(show);
-        } else if (currentFilter === 'missing-anidb') {
-          return hasMissingAniDbInShow(show);
+        } else if (currentFilter === 'skipped-anilist') {
+          return hasSkippedAniListInShow(show);
         } else if (currentFilter === 'complete') {
-          return !hasNullsInShow(show);
+          return !hasMissingAniListInShow(show);
         }
         return true;
+      });
+
+      // Sort
+      filtered.sort(([idA, showA], [idB, showB]) => {
+        if (currentSort === 'missing-desc') {
+          const diff = countMissingAniListInShow(showB) - countMissingAniListInShow(showA);
+          if (diff !== 0) return diff;
+          return (showA.title || '').localeCompare(showB.title || '');
+        } else if (currentSort === 'missing-asc') {
+          const diff = countMissingAniListInShow(showA) - countMissingAniListInShow(showB);
+          if (diff !== 0) return diff;
+          return (showA.title || '').localeCompare(showB.title || '');
+        } else if (currentSort === 'title-asc') {
+          return (showA.title || '').localeCompare(showB.title || '');
+        }
+        return 0; // Default (TVDB ID)
       });
 
       if (filtered.length === 0) {
         let emptyMsg = 'No series match your search or filter.';
         if (currentFilter === 'missing-anilist') {
           emptyMsg = '🌸 No series are currently missing AniList mappings!';
-        } else if (currentFilter === 'missing-anidb') {
-          emptyMsg = '⚡ No series are currently missing AniDB mappings!';
+        } else if (currentFilter === 'skipped-anilist') {
+          emptyMsg = '🌸 No series currently have skipped AniList episodes.';
         } else if (currentFilter === 'complete') {
-          emptyMsg = 'No completed series yet. Fill in missing AniDB and AniList IDs above.';
+          emptyMsg = 'No completed series yet. Fill in missing AniList IDs or mark them as skipped.';
         }
         container.innerHTML = '<div style="text-align: center; color: var(--text-muted); padding: 2rem;">' + emptyMsg + '</div>';
         return;
@@ -313,82 +369,30 @@ export const renderOverridesHtml = (): string => {
       container.innerHTML = filtered.map(([tvdbId, show]) => renderShowCard(tvdbId, show)).join('');
     }
 
-    function hasNullsInShow(show) {
-      for (const season of Object.values(show.seasons || {})) {
-        for (const ep of Object.values(season.episodes || {})) {
-          if (ep.anidbId === null || ep.anidbId === '' || ep.anilistId === null || ep.anilistId === '') {
-            return true;
-          }
-        }
-      }
-      return false;
-    }
-
-    function countNullsInShow(show) {
-      let count = 0;
-      for (const season of Object.values(show.seasons || {})) {
-        for (const ep of Object.values(season.episodes || {})) {
-          if (ep.anidbId === null || ep.anidbId === '' || ep.anilistId === null || ep.anilistId === '') {
-            count++;
-          }
-        }
-      }
-      return count;
-    }
-
-    function hasMissingAniListInShow(show) {
-      for (const season of Object.values(show.seasons || {})) {
-        for (const ep of Object.values(season.episodes || {})) {
-          if (ep.anilistId === null || ep.anilistId === '' || ep.anilistId === undefined) {
-            return true;
-          }
-        }
-      }
-      return false;
-    }
-
-    function hasMissingAniDbInShow(show) {
-      for (const season of Object.values(show.seasons || {})) {
-        for (const ep of Object.values(season.episodes || {})) {
-          if (ep.anidbId === null || ep.anidbId === '' || ep.anidbId === undefined) {
-            return true;
-          }
-        }
-      }
-      return false;
-    }
-
-    function countMissingAniListInShow(show) {
-      let count = 0;
-      for (const season of Object.values(show.seasons || {})) {
-        for (const ep of Object.values(season.episodes || {})) {
-          if (ep.anilistId === null || ep.anilistId === '' || ep.anilistId === undefined) {
-            count++;
-          }
-        }
-      }
-      return count;
-    }
-
-    function countMissingAniDbInShow(show) {
-      let count = 0;
-      for (const season of Object.values(show.seasons || {})) {
-        for (const ep of Object.values(season.episodes || {})) {
-          if (ep.anidbId === null || ep.anidbId === '' || ep.anidbId === undefined) {
-            count++;
-          }
-        }
-      }
-      return count;
-    }
-
     function renderShowCard(tvdbId, show) {
-      const nullCount = countNullsInShow(show);
-      const aniListNulls = countMissingAniListInShow(show);
-      const aniDbNulls = countMissingAniDbInShow(show);
+      const missingCount = countMissingAniListInShow(show);
+      const skippedCount = countSkippedAniListInShow(show);
       const isModified = dirtyShows.has(tvdbId);
       const cleanTitle = show.title || 'Unknown Title';
       const encodedTitle = encodeURIComponent(cleanTitle);
+      const isOpen = openCards.has(tvdbId) || allExpanded;
+
+      let totalEps = 0;
+      for (const season of Object.values(show.seasons || {})) {
+        totalEps += Object.keys(season.episodes || {}).length;
+      }
+      const isAllSkipped = totalEps > 0 && skippedCount === totalEps;
+
+      let statusBadge = '';
+      if (missingCount > 0) {
+        statusBadge = \`<span class="badge badge-anilist" title="\${missingCount} episode(s) missing AniList">🌸 \${missingCount} missing AniList</span>\`;
+      } else if (isAllSkipped) {
+        statusBadge = \`<span class="badge badge-anilist-skipped">🌸 All Episodes Skipped</span>\`;
+      } else if (skippedCount > 0) {
+        statusBadge = \`<span class="badge badge-ok">✓ Completed (\${skippedCount} skipped)</span>\`;
+      } else {
+        statusBadge = \`<span class="badge badge-ok">✓ Completed</span>\`;
+      }
 
       const seasonsHtml = Object.entries(show.seasons || {})
         .sort(([a], [b]) => Number(a) - Number(b))
@@ -401,23 +405,20 @@ export const renderOverridesHtml = (): string => {
             <div class="series-title-group">
               <div class="series-title">
                 <span>\${escapeHtml(cleanTitle)}</span>
-                \${nullCount > 0 ? \`<span class="badge badge-missing">\${nullCount} nulls</span>\` : \`<span class="badge badge-ok">✓ Completed</span>\`}
-                \${aniListNulls > 0 ? \`<span class="badge badge-anilist" title="\${aniListNulls} episode(s) missing AniList">🌸 \${aniListNulls} AniList null</span>\` : ''}
-                \${aniDbNulls > 0 && currentFilter === 'missing-anidb' ? \`<span class="badge badge-anidb" title="\${aniDbNulls} episode(s) missing AniDB">⚡ \${aniDbNulls} AniDB null</span>\` : ''}
+                \${statusBadge}
               </div>
               <div class="series-badges" onclick="event.stopPropagation()">
                 <a href="https://thetvdb.com/dereferrer/series/\${tvdbId}" target="_blank" class="badge badge-tvdb">TVDB: \${tvdbId} ↗</a>
                 \${show.tmdbId ? \`<a href="https://www.themoviedb.org/tv/\${show.tmdbId}" target="_blank" class="badge badge-tmdb">TMDB: \${show.tmdbId} ↗</a>\` : ''}
-                <a href="https://anidb.net/anime/?adb.search=\${encodedTitle}" target="_blank" class="badge badge-search">🔍 AniDB ↗</a>
-                <a href="https://anilist.co/search/anime?search=\${encodedTitle}" target="_blank" class="badge badge-search" style="color: var(--anilist);">🌸 AniList ↗</a>
+                <a href="https://anilist.co/search/anime?search=\${encodedTitle}" target="_blank" class="badge badge-search" style="color: var(--anilist);">🌸 Search AniList ↗</a>
               </div>
             </div>
             <div class="series-actions" onclick="event.stopPropagation()">
               <button class="btn btn-primary btn-sm" onclick="saveShow('\${tvdbId}')" id="save-btn-\${tvdbId}" \${isModified ? '' : 'style="opacity: 0.6;"'}>💾 Save</button>
-              <span class="chevron" id="chevron-\${tvdbId}">▼</span>
+              <span class="chevron \${isOpen ? 'open' : ''}" id="chevron-\${tvdbId}">▼</span>
             </div>
           </div>
-          <div class="series-body" id="body-\${tvdbId}">
+          <div class="series-body \${isOpen ? 'open' : ''}" id="body-\${tvdbId}">
             \${seasonsHtml}
           </div>
         </div>
@@ -427,19 +428,20 @@ export const renderOverridesHtml = (): string => {
     function renderSeasonSection(tvdbId, seasonNum, season) {
       const label = seasonNum === '0' ? 'Season 0 (Specials)' : 'Season ' + seasonNum;
       const episodes = Object.entries(season.episodes || {}).sort(([a], [b]) => Number(a) - Number(b));
-      const seasonAniListNulls = episodes.filter(([_, ep]) => ep.anilistId === null || ep.anilistId === undefined || ep.anilistId === '').length;
-      const seasonAniDbNulls = episodes.filter(([_, ep]) => ep.anidbId === null || ep.anidbId === undefined || ep.anidbId === '').length;
+      const seasonMissing = episodes.filter(([_, ep]) => isEpMissingAniList(ep)).length;
+      const seasonSkipped = episodes.filter(([_, ep]) => Boolean(ep.skipAniList)).length;
+      const isSeasonAllSkipped = episodes.length > 0 && seasonSkipped === episodes.length;
 
       const rows = episodes.map(([epNum, ep]) => {
-        const isAniDbNull = ep.anidbId === null || ep.anidbId === undefined || ep.anidbId === '';
-        const isAniListNull = ep.anilistId === null || ep.anilistId === undefined || ep.anilistId === '';
+        const isAniListSkipped = Boolean(ep.skipAniList);
+        const isAniListNull = isEpMissingAniList(ep);
         const cleanEpName = ep.name || ('Episode ' + epNum);
 
         let rowHighlight = '';
-        if (currentFilter === 'missing-anilist' && isAniListNull) {
+        if (isAniListSkipped) {
+          rowHighlight = 'row-skipped-anilist';
+        } else if (currentFilter === 'missing-anilist' && isAniListNull) {
           rowHighlight = 'row-highlight-anilist';
-        } else if (currentFilter === 'missing-anidb' && isAniDbNull) {
-          rowHighlight = 'row-highlight-anidb';
         }
 
         return \`
@@ -448,27 +450,11 @@ export const renderOverridesHtml = (): string => {
             <td class="ep-name" title="\${escapeHtml(cleanEpName)}">\${escapeHtml(cleanEpName)}</td>
             <td>
               <div class="id-input-group">
-                <input type="text" class="id-input \${isAniDbNull ? 'null-val' : ''}" 
-                  id="anidb-\${tvdbId}-\${seasonNum}-\${epNum}" 
-                  value="\${isAniDbNull ? '' : escapeHtml(ep.anidbId)}" 
-                  placeholder="null"
-                  onchange="onFieldChange('\${tvdbId}', '\${seasonNum}', '\${epNum}', 'anidbId', this.value)"
-                >
-                <input type="number" class="id-input ep-sub-input" 
-                  id="anidb-ep-\${tvdbId}-\${seasonNum}-\${epNum}" 
-                  value="\${ep.anidbEpisode ?? epNum}" 
-                  title="AniDB Episode Number"
-                  onchange="onFieldChange('\${tvdbId}', '\${seasonNum}', '\${epNum}', 'anidbEpisode', this.value)"
-                >
-                <button class="btn btn-secondary btn-sm" title="Set to null (skip Simkl)" onclick="setNull('\${tvdbId}', '\${seasonNum}', '\${epNum}', 'anidbId')">∅</button>
-              </div>
-            </td>
-            <td>
-              <div class="id-input-group">
-                <input type="number" class="id-input \${isAniListNull ? 'null-val' : ''}" 
+                <input type="number" class="id-input \${isAniListSkipped ? 'skipped-val' : isAniListNull ? 'null-val' : ''}" 
                   id="anilist-\${tvdbId}-\${seasonNum}-\${epNum}" 
-                  value="\${isAniListNull ? '' : escapeHtml(ep.anilistId)}" 
-                  placeholder="null"
+                  value="\${isAniListNull || isAniListSkipped ? '' : escapeHtml(ep.anilistId)}" 
+                  placeholder="\${isAniListSkipped ? 'skipped' : 'null'}"
+                  title="\${isAniListSkipped ? 'AniList Skipped (will use TVDB for Simkl)' : 'AniList Media ID'}"
                   onchange="onFieldChange('\${tvdbId}', '\${seasonNum}', '\${epNum}', 'anilistId', this.value)"
                 >
                 <input type="number" class="id-input ep-sub-input" 
@@ -477,7 +463,18 @@ export const renderOverridesHtml = (): string => {
                   title="AniList Episode Number"
                   onchange="onFieldChange('\${tvdbId}', '\${seasonNum}', '\${epNum}', 'anilistEpisode', this.value)"
                 >
-                <button class="btn btn-secondary btn-sm" title="Set to null (skip AniList)" onclick="setNull('\${tvdbId}', '\${seasonNum}', '\${epNum}', 'anilistId')">∅</button>
+              </div>
+            </td>
+            <td>
+              <div style="display: flex; gap: 0.35rem; align-items: center; justify-content: center;">
+                <button class="btn btn-sm \${isAniListSkipped ? 'btn-anilist-skipped' : 'btn-secondary'}" 
+                  onclick="toggleEpSkipAniList('\${tvdbId}', '\${seasonNum}', '\${epNum}')" 
+                  title="\${isAniListSkipped ? 'AniList skipped. Click to unskip.' : 'Skip AniList for this episode (not counted as missing, will use TVDB for Simkl)'}">
+                  🌸 \${isAniListSkipped ? 'Skipped' : 'Skip'}
+                </button>
+                <button class="btn btn-secondary btn-sm" 
+                  onclick="setNull('\${tvdbId}', '\${seasonNum}', '\${epNum}', 'anilistId')" 
+                  title="Clear AniList ID (sets to null, marks as missing)">∅</button>
               </div>
             </td>
           </tr>
@@ -487,26 +484,29 @@ export const renderOverridesHtml = (): string => {
       return \`
         <div class="season-section">
           <div class="season-header">
-            <span>\${label}</span>
+            <div>
+              <span>\${label}</span>
+              \${isSeasonAllSkipped ? '<span class="badge badge-anilist-skipped" style="margin-left: 0.5rem;">🌸 Season Skipped (AniList)</span>' : ''}
+            </div>
             <span style="font-size: 0.8rem; color: var(--text-muted);">
               \${episodes.length} episodes
-              \${seasonAniListNulls > 0 ? \`· <span style="color: #f472b6; font-weight: 600;">🌸 \${seasonAniListNulls} missing AniList</span>\` : ''}
-              \${seasonAniDbNulls > 0 && currentFilter === 'missing-anidb' ? \`· <span style="color: #fbbf24; font-weight: 600;">⚡ \${seasonAniDbNulls} missing AniDB</span>\` : ''}
+              \${seasonMissing > 0 ? \`· <span style="color: var(--anilist-pink); font-weight: 600;">🌸 \${seasonMissing} missing AniList</span>\` : ''}
+              \${seasonSkipped > 0 && !isSeasonAllSkipped ? \`· <span style="color: #c084fc;">🌸 \${seasonSkipped} skipped</span>\` : ''}
             </span>
           </div>
           <div class="batch-fill-bar">
-            <span>⚡ Batch Fill \${label}:</span>
-            <input type="text" class="id-input" id="batch-anidb-\${tvdbId}-\${seasonNum}" placeholder="AniDB ID">
-            <input type="number" class="id-input" id="batch-anilist-\${tvdbId}-\${seasonNum}" placeholder="AniList ID">
+            <span>🌸 Batch Fill \${label}:</span>
+            <input type="number" class="id-input" id="batch-anilist-\${tvdbId}-\${seasonNum}" placeholder="AniList ID" style="max-width: 140px;">
             <button class="btn btn-secondary btn-sm" onclick="applyBatchSeason('\${tvdbId}', '\${seasonNum}')">Apply to Season</button>
+            <button class="btn btn-secondary btn-sm" onclick="skipUnmappedSeasonAniList('\${tvdbId}', '\${seasonNum}')" title="Mark all unmapped episodes in this season as skipped for AniList">🌸 Skip Unmapped in Season</button>
           </div>
           <table class="ep-table">
             <thead>
               <tr>
-                <th>Ep</th>
+                <th style="width: 70px;">Ep</th>
                 <th>Title</th>
-                <th>AniDB (Simkl) [ID / Ep]</th>
-                <th>AniList [ID / Ep]</th>
+                <th>AniList [Media ID / Ep]</th>
+                <th style="width: 130px; text-align: center;">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -525,9 +525,11 @@ export const renderOverridesHtml = (): string => {
       if (body.classList.contains('open')) {
         body.classList.remove('open');
         chevron.classList.remove('open');
+        openCards.delete(tvdbId);
       } else {
         body.classList.add('open');
         chevron.classList.add('open');
+        openCards.add(tvdbId);
       }
     }
 
@@ -542,38 +544,65 @@ export const renderOverridesHtml = (): string => {
         if (allExpanded) c.classList.add('open');
         else c.classList.remove('open');
       });
+      if (!allExpanded) openCards.clear();
     }
 
     function onFieldChange(tvdbId, seasonNum, epNum, field, val) {
       const ep = overridesData[tvdbId]?.seasons?.[seasonNum]?.episodes?.[epNum];
       if (!ep) return;
 
-      if (field === 'anidbId') {
-        const trimmed = val.trim();
-        ep.anidbId = trimmed === '' || trimmed.toLowerCase() === 'null' ? null : trimmed;
-        const input = document.getElementById('anidb-' + tvdbId + '-' + seasonNum + '-' + epNum);
-        if (input) {
-          if (ep.anidbId === null) input.classList.add('null-val');
-          else input.classList.remove('null-val');
-        }
-      } else if (field === 'anilistId') {
+      if (field === 'anilistId') {
         const trimmed = val.trim();
         const parsed = parseInt(trimmed, 10);
         ep.anilistId = trimmed === '' || trimmed.toLowerCase() === 'null' || !Number.isInteger(parsed) ? null : parsed;
+        if (ep.anilistId !== null) {
+          delete ep.skipAniList; // Valid ID entered, clear skip flag
+        }
         const input = document.getElementById('anilist-' + tvdbId + '-' + seasonNum + '-' + epNum);
         if (input) {
           if (ep.anilistId === null) input.classList.add('null-val');
           else input.classList.remove('null-val');
         }
-      } else if (field === 'anidbEpisode') {
-        const parsed = parseInt(val, 10);
-        ep.anidbEpisode = Number.isInteger(parsed) ? parsed : null;
       } else if (field === 'anilistEpisode') {
         const parsed = parseInt(val, 10);
         ep.anilistEpisode = Number.isInteger(parsed) ? parsed : null;
       }
 
       markDirty(tvdbId);
+      renderSeriesCards();
+    }
+
+    function toggleEpSkipAniList(tvdbId, seasonNum, epNum) {
+      const ep = overridesData[tvdbId]?.seasons?.[seasonNum]?.episodes?.[epNum];
+      if (!ep) return;
+
+      ep.skipAniList = !ep.skipAniList;
+      if (!ep.skipAniList) {
+        delete ep.skipAniList;
+      }
+      markDirty(tvdbId);
+      renderSeriesCards();
+    }
+
+    function skipUnmappedSeasonAniList(tvdbId, seasonNum) {
+      const season = overridesData[tvdbId]?.seasons?.[seasonNum];
+      if (!season || !season.episodes) return;
+
+      let changed = 0;
+      for (const [epNum, ep] of Object.entries(season.episodes)) {
+        if (!ep.skipAniList && (ep.anilistId === null || ep.anilistId === undefined || ep.anilistId === '')) {
+          ep.skipAniList = true;
+          changed++;
+        }
+      }
+
+      if (changed > 0) {
+        markDirty(tvdbId);
+        renderSeriesCards();
+        showToast('Marked ' + changed + ' unmapped episode(s) as skipped for AniList', 'success');
+      } else {
+        showToast('No unmapped episodes to skip in this season', 'error');
+      }
     }
 
     function setNull(tvdbId, seasonNum, epNum, field) {
@@ -581,42 +610,28 @@ export const renderOverridesHtml = (): string => {
       if (!ep) return;
 
       ep[field] = null;
-      if (field === 'anidbId') {
-        const input = document.getElementById('anidb-' + tvdbId + '-' + seasonNum + '-' + epNum);
-        if (input) { input.value = ''; input.classList.add('null-val'); }
-      } else if (field === 'anilistId') {
-        const input = document.getElementById('anilist-' + tvdbId + '-' + seasonNum + '-' + epNum);
-        if (input) { input.value = ''; input.classList.add('null-val'); }
-      }
-
+      delete ep.skipAniList; // Reset skip flag so it shows as null/missing
       markDirty(tvdbId);
+      renderSeriesCards();
     }
 
     function applyBatchSeason(tvdbId, seasonNum) {
-      const anidbVal = document.getElementById('batch-anidb-' + tvdbId + '-' + seasonNum)?.value.trim() || '';
       const anilistVal = document.getElementById('batch-anilist-' + tvdbId + '-' + seasonNum)?.value.trim() || '';
-
       const season = overridesData[tvdbId]?.seasons?.[seasonNum];
       if (!season || !season.episodes) return;
 
-      for (const [epNum, ep] of Object.entries(season.episodes)) {
-        if (anidbVal) {
-          ep.anidbId = anidbVal;
-          const input = document.getElementById('anidb-' + tvdbId + '-' + seasonNum + '-' + epNum);
-          if (input) { input.value = anidbVal; input.classList.remove('null-val'); }
-        }
-        if (anilistVal) {
-          const parsed = parseInt(anilistVal, 10);
-          if (Number.isInteger(parsed)) {
+      if (anilistVal) {
+        const parsed = parseInt(anilistVal, 10);
+        if (Number.isInteger(parsed)) {
+          for (const [epNum, ep] of Object.entries(season.episodes)) {
             ep.anilistId = parsed;
-            const input = document.getElementById('anilist-' + tvdbId + '-' + seasonNum + '-' + epNum);
-            if (input) { input.value = parsed; input.classList.remove('null-val'); }
+            delete ep.skipAniList;
           }
+          markDirty(tvdbId);
+          renderSeriesCards();
+          showToast('Applied AniList ID ' + parsed + ' to ' + (seasonNum === '0' ? 'Specials' : 'Season ' + seasonNum), 'success');
         }
       }
-
-      markDirty(tvdbId);
-      showToast('Applied batch values to ' + (seasonNum === '0' ? 'Specials' : 'Season ' + seasonNum), 'success');
     }
 
     function markDirty(tvdbId) {
@@ -698,6 +713,13 @@ export const renderOverridesHtml = (): string => {
         if (btn.dataset.filter === filter) btn.classList.add('active');
         else btn.classList.remove('active');
       });
+      renderSeriesCards();
+    }
+
+    function setSort(sortVal) {
+      currentSort = sortVal;
+      const select = document.getElementById('sort-select');
+      if (select) select.value = sortVal;
       renderSeriesCards();
     }
 

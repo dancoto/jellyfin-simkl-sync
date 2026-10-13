@@ -137,7 +137,6 @@ describe('AniBridge Index & Resolver', () => {
 
     const result = resolver.resolveEpisode({ tvdbId: '439265' }, 1, 5);
     expect(result).toEqual({
-      animeId: '17617',
       episodeNumber: 5,
       isSpecial: false,
       kind: 'regular',
@@ -150,40 +149,36 @@ describe('AniBridge Index & Resolver', () => {
     const resolver = new AnimeResolver();
     resolver.setIndices(aniBridge);
 
-    // S1 Ep 10 -> AniDB 9541 Ep 10
+    // S1 Ep 10
     const s1 = resolver.resolveEpisode({ tvdbId: '267440' }, 1, 10);
     expect(s1).toEqual({
-      animeId: '9541',
       episodeNumber: 10,
       isSpecial: false,
       kind: 'regular',
       source: 'anibridge',
     });
 
-    // S2 Ep 3 -> AniDB 10944 Ep 3
+    // S2 Ep 3
     const s2 = resolver.resolveEpisode({ tvdbId: '267440' }, 2, 3);
     expect(s2).toEqual({
-      animeId: '10944',
       episodeNumber: 3,
       isSpecial: false,
       kind: 'regular',
       source: 'anibridge',
     });
 
-    // S3 Ep 5 (Part 1) -> AniDB 13507 Ep 5
+    // S3 Ep 5 (Part 1)
     const s3p1 = resolver.resolveEpisode({ tvdbId: '267440' }, 3, 5);
     expect(s3p1).toEqual({
-      animeId: '13507',
       episodeNumber: 5,
       isSpecial: false,
       kind: 'regular',
       source: 'anibridge',
     });
 
-    // S3 Ep 15 (Part 2) -> AniDB 14226 Ep 3 (15 - 13 + 1 = 3)
+    // S3 Ep 15 (Part 2)
     const s3p2 = resolver.resolveEpisode({ tvdbId: '267440' }, 3, 15);
     expect(s3p2).toEqual({
-      animeId: '14226',
       episodeNumber: 3,
       isSpecial: false,
       kind: 'regular',
@@ -198,7 +193,6 @@ describe('AniBridge Index & Resolver', () => {
 
     const special = resolver.resolveEpisode({ tvdbId: '267440' }, 0, 2);
     expect(special).toEqual({
-      animeId: '9541',
       episodeNumber: 2,
       isSpecial: true,
       kind: 'special',
@@ -213,7 +207,6 @@ describe('AniBridge Index & Resolver', () => {
 
     const ova = resolver.resolveEpisode({ tvdbId: '87491' }, 0, 37);
     expect(ova).toEqual({
-      animeId: '11257',
       episodeNumber: 1,
       isSpecial: false,
       kind: 'regular',
@@ -228,14 +221,12 @@ describe('AniBridge Index & Resolver', () => {
 
     const tmdbMovie = resolver.resolveMovie({ tmdbId: '128' });
     expect(tmdbMovie).toEqual({
-      animeId: '7',
       episodeNumber: 1,
       source: 'anibridge',
     });
 
     const imdbMovie = resolver.resolveMovie({ imdbId: 'TT0119698' });
     expect(imdbMovie).toEqual({
-      animeId: '7',
       episodeNumber: 1,
       source: 'anibridge',
     });
@@ -256,12 +247,10 @@ describe('AniBridge Index & Resolver', () => {
     resolver.setIndices(aniBridge);
 
     const ep1 = resolver.resolveEpisode({ tvdbId: '82807' }, 2, 1);
-    expect(ep1?.animeId).toBe('6793');
     expect(ep1?.anilist?.mediaId).toBe(5277);
     expect(ep1?.anilist?.episodeNumber).toBe(1);
 
     const ep2 = resolver.resolveEpisode({ tvdbId: '82807' }, 2, 2);
-    expect(ep2?.animeId).toBe('6793');
     expect(ep2?.anilist?.mediaId).toBe(5277);
     expect(ep2?.anilist?.episodeNumber).toBe(2);
   });
@@ -300,7 +289,6 @@ describe('Overrides & Fallback Precedence', () => {
 
     const result = resolver.resolveEpisode({ tvdbId: '500' }, 1, 1);
     expect(result).toEqual({
-      animeId: '999',
       episodeNumber: 1,
       isSpecial: false,
       kind: 'regular',
@@ -316,7 +304,6 @@ describe('Overrides & Fallback Precedence', () => {
 
     const result = resolver.resolveEpisode({ tvdbId: '600' }, 1, 4);
     expect(result).toEqual({
-      animeId: '200',
       episodeNumber: 4,
       isSpecial: false,
       kind: 'regular',
@@ -332,7 +319,6 @@ describe('Overrides & Fallback Precedence', () => {
 
     const result = resolver.resolveEpisode({ tvdbId: '600' }, 0, 12);
     expect(result).toEqual({
-      animeId: '201',
       episodeNumber: 2,
       isSpecial: false,
       kind: 'regular',

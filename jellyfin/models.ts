@@ -44,14 +44,12 @@ export interface NormalizedPlaybackEvent {
     tvdb?: string;
     tmdb?: string;
     imdb?: string;
-    anidb?: string;
     [key: string]: string | undefined;
   };
   seriesProviderIds: {
     tvdb?: string;
     tmdb?: string;
     imdb?: string;
-    anidb?: string;
     [key: string]: string | undefined;
   };
 }
