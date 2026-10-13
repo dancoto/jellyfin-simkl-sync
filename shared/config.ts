@@ -23,6 +23,10 @@ export type Config = {
     token: string;
     excluded_libraries?: string[];
     anime_libraries?: string[];
+    continuous_sync?: {
+      enabled?: boolean;
+      debounce_ms?: number;
+    };
   };
   simkl: {
     app_name: string;

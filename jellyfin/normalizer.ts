@@ -39,12 +39,14 @@ export const normalizeJellyfinWebhook = (payload: RawJellyfinPayload): Normalize
   const notificationType = payload.NotificationType ?? 'PlaybackStop';
   const username = payload.NotificationUsername ?? payload.Username ?? payload.User?.Name ?? '';
 
-  let itemType: 'Episode' | 'Movie' | 'Other' = 'Other';
+  let itemType: 'Episode' | 'Movie' | 'Series' | 'Other' = 'Other';
   const rawItemType = (payload.ItemType ?? '').toLowerCase();
   if (rawItemType === 'episode') {
     itemType = 'Episode';
   } else if (rawItemType === 'movie') {
     itemType = 'Movie';
+  } else if (rawItemType === 'series') {
+    itemType = 'Series';
   }
 
   const itemId = payload.ItemId;
@@ -163,6 +165,14 @@ export const normalizeJellyfinWebhook = (payload: RawJellyfinPayload): Normalize
       providerIds['tmdb'] = strVal;
     } else if (lowerKey === 'imdb' || lowerKey === 'imdbid') {
       providerIds['imdb'] = strVal;
+    }
+  }
+
+  if (itemType === 'Series') {
+    for (const [k, v] of Object.entries(providerIds)) {
+      if (v && !seriesProviderIds[k]) {
+        seriesProviderIds[k] = v;
+      }
     }
   }
 

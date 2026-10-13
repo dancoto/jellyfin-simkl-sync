@@ -4,6 +4,13 @@ import { AniBridgeIndex, defaultAnimeResolver } from './anime';
 import { TvdbOverridesIndex } from './anime/tvdb-overrides';
 import { defaultJellyfinClient } from './jellyfin';
 import { clearNotificationCooldowns, handleWebhook } from './main';
+import {
+  clearSeriesSyncQueue,
+  flushAllPendingSeriesSync,
+  getPendingSeriesSyncCount,
+  resetSeriesSyncRunner,
+  setSeriesSyncRunner,
+} from './overrides/series-debouncer';
 import { appConfig } from './shared/config';
 
 describe('Main Webhook Handler', () => {
@@ -12,6 +19,7 @@ describe('Main Webhook Handler', () => {
   let tempOverridesPath: string;
 
   beforeEach(() => {
+    clearSeriesSyncQueue();
     tempOverridesPath = `/tmp/test-main-overrides-${Date.now()}-${Math.random().toString(36).slice(2)}.json`;
     defaultAnimeResolver.setTvdbOverridesPath(tempOverridesPath);
     clearNotificationCooldowns();
@@ -177,6 +185,8 @@ describe('Main Webhook Handler', () => {
   });
 
   afterEach(() => {
+    clearSeriesSyncQueue();
+    resetSeriesSyncRunner();
     defaultAnimeResolver.setTvdbOverridesPath(undefined);
     if (existsSync(tempOverridesPath)) {
       unlinkSync(tempOverridesPath);
@@ -1322,5 +1332,109 @@ describe('Main Webhook Handler', () => {
     await new Promise((resolve) => setTimeout(resolve, 50));
 
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  describe('Continuous Sync (ItemAdded Webhooks)', () => {
+    test('should queue and sync series when ItemAdded received for an episode in Anime library without requiring user token', async () => {
+      const syncMock = mock(async (tvdbId: string, _options?: any) => ({
+        tvdbId,
+        title: 'Frieren: Beyond Journey’s End',
+        deleted: false,
+        totalEpisodes: 28,
+        prunedOverridesCount: 0,
+      }));
+      setSeriesSyncRunner(syncMock);
+
+      const payload: any = {
+        NotificationType: 'ItemAdded',
+        ItemType: 'Episode',
+        Name: 'The Journey Begins',
+        SeriesName: 'Frieren: Beyond Journey’s End',
+        SeriesId: 'jf-series-guid-1',
+        LibraryName: 'Anime Shows',
+        Series_Provider_tvdb: '439265',
+      };
+
+      // Notice: No user token or username is configured in this payload
+      await handleWebhook(payload, { debounceMs: 10 });
+      expect(getPendingSeriesSyncCount()).toBe(1);
+
+      await flushAllPendingSeriesSync();
+      expect(syncMock).toHaveBeenCalledTimes(1);
+      expect(syncMock.mock.calls[0]![0]).toBe('439265');
+      expect(syncMock.mock.calls[0]![1]?.jellyfinSeriesId).toBe('jf-series-guid-1');
+    });
+
+    test('should queue and sync movie when ItemAdded received for an anime movie in Anime Movies library', async () => {
+      const syncMock = mock(async (tvdbId: string, _options?: any) => ({
+        tvdbId,
+        title: 'Spirited Away',
+        deleted: false,
+        totalEpisodes: 1,
+        prunedOverridesCount: 0,
+      }));
+      setSeriesSyncRunner(syncMock);
+
+      const payload: any = {
+        NotificationType: 'ItemAdded',
+        ItemType: 'Movie',
+        Name: 'Spirited Away',
+        ItemId: 'jf-movie-guid-1',
+        LibraryName: 'Anime Movies',
+        Provider_tvdb: '276',
+      };
+
+      await handleWebhook(payload, { debounceMs: 10 });
+      expect(getPendingSeriesSyncCount()).toBe(1);
+
+      await flushAllPendingSeriesSync();
+      expect(syncMock).toHaveBeenCalledTimes(1);
+      expect(syncMock.mock.calls[0]![0]).toBe('276');
+      expect(syncMock.mock.calls[0]![1]?.jellyfinSeriesId).toBe('jf-movie-guid-1');
+    });
+
+    test('should ignore ItemAdded for items in explicitly excluded libraries (Other Anime / Other Anime Movies)', async () => {
+      const syncMock = mock(async () => ({}));
+      setSeriesSyncRunner(syncMock as any);
+
+      // Other Anime
+      await handleWebhook({
+        NotificationType: 'ItemAdded',
+        ItemType: 'Episode',
+        Name: 'Side Episode',
+        SeriesName: 'Other Anime Show',
+        LibraryName: 'Other Anime',
+        Series_Provider_tvdb: '99999',
+      });
+      expect(getPendingSeriesSyncCount()).toBe(0);
+
+      // Other Anime Movies
+      await handleWebhook({
+        NotificationType: 'ItemAdded',
+        ItemType: 'Movie',
+        Name: 'Side Movie',
+        LibraryName: 'Other Anime Movies',
+        Provider_tvdb: '88888',
+      });
+      expect(getPendingSeriesSyncCount()).toBe(0);
+      expect(syncMock).not.toHaveBeenCalled();
+    });
+
+    test('should ignore ItemAdded for non-anime items in standard libraries (e.g. TV Shows)', async () => {
+      const syncMock = mock(async () => ({}));
+      setSeriesSyncRunner(syncMock as any);
+
+      await handleWebhook({
+        NotificationType: 'ItemAdded',
+        ItemType: 'Episode',
+        Name: 'Pilot',
+        SeriesName: 'Breaking Bad',
+        LibraryName: 'TV Shows',
+        Series_Provider_tvdb: '81189',
+      });
+
+      expect(getPendingSeriesSyncCount()).toBe(0);
+      expect(syncMock).not.toHaveBeenCalled();
+    });
   });
 });

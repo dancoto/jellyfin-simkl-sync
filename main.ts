@@ -8,6 +8,7 @@ import {
   normalizeJellyfinWebhook,
   type RawJellyfinPayload,
 } from './jellyfin';
+import { enqueueSeriesSync } from './overrides/series-debouncer';
 import { logger } from './shared/logger';
 import { sendNotification } from './ntfy';
 import { getOrRefreshUserToken } from './simkl/auth';
@@ -15,7 +16,7 @@ import { enqueueScrobble } from './simkl/batcher';
 
 export const handleWebhook = async (
   rawPayload: RawJellyfinPayload,
-  options?: { debounceMs?: number },
+  options?: { debounceMs?: number; customCatalogPath?: string; customOverridesPath?: string },
 ) => {
   const event = normalizeJellyfinWebhook(rawPayload);
 
@@ -37,36 +38,14 @@ export const handleWebhook = async (
     seriesProviderIds: event.seriesProviderIds,
   });
 
-  // 1. Ensure user has valid token (Simkl and/or AniList)
-  let simklToken: string | null = null;
-  try {
-    simklToken = await getOrRefreshUserToken(event.username);
-  } catch (err) {
-    logger.warn(`Failed to retrieve Simkl token for "${event.username}":`, err);
-  }
-
-  let anilistToken: string | null = null;
-  try {
-    anilistToken = getAniListUserToken(event.username);
-  } catch (err) {
-    logger.warn(`Failed to retrieve AniList token for "${event.username}":`, err);
-  }
-
-  if (!simklToken && !anilistToken) {
-    logger.warn(
-      `User "${event.username}" has no configured Simkl or AniList token. Nothing will be synced.`,
-    );
-    return;
-  }
-
-  // 2. Determine library name and ensure provider IDs are loaded before anime fallback check
+  // 1. Determine library name and ensure provider IDs are loaded before anime fallback check
   let libraryName = event.libraryName;
   if (!libraryName || libraryName.toLowerCase() === 'root') {
     libraryName =
       (await defaultJellyfinClient.getLibraryName(event.seriesId ?? event.itemId)) ?? undefined;
   }
 
-  // 2b. Explicitly exclude libraries configured/defaulted to be excluded from sync
+  // 1b. Explicitly exclude libraries configured/defaulted to be excluded from sync
   if (libraryName && isExcludedLibrary(libraryName)) {
     logger.info(
       `[Webhook] Library "${libraryName}" is explicitly excluded from sync. Skipping event for "${event.name}".`,
@@ -90,10 +69,14 @@ export const handleWebhook = async (
   }
 
   // Pre-fetch provider IDs from Jellyfin API if missing from webhook body
-  if (event.itemType === 'Episode' && event.seriesId) {
+  if (
+    (event.itemType === 'Episode' || event.itemType === 'Series') &&
+    (event.seriesId || event.itemId)
+  ) {
+    const targetId = event.itemType === 'Episode' ? event.seriesId! : event.itemId!;
     if (!event.seriesProviderIds.tvdb && !event.seriesProviderIds.tmdb) {
-      logger.debug(`Querying series provider IDs from Jellyfin API for ${event.seriesId}...`);
-      const fetched = await defaultJellyfinClient.getSeriesProviderIds(event.seriesId);
+      logger.debug(`Querying series provider IDs from Jellyfin API for ${targetId}...`);
+      const fetched = await defaultJellyfinClient.getSeriesProviderIds(targetId);
       if (fetched) {
         event.seriesProviderIds = { ...event.seriesProviderIds, ...fetched };
       }
@@ -109,6 +92,62 @@ export const handleWebhook = async (
   }
 
   const isAnime = (libraryName && isAnimeLibrary(libraryName)) || checkIfAnimeFallback(event);
+
+  // 2. Handle ItemAdded: Continuous Sync (Server-level event, no user scrobbler token required)
+  const isItemAdded = (event.notificationType ?? '').toLowerCase() === 'itemadded';
+  if (isItemAdded) {
+    if (isAnime) {
+      const tvdbId =
+        event.itemType === 'Movie'
+          ? event.providerIds.tvdb
+          : (event.seriesProviderIds.tvdb ?? event.providerIds.tvdb);
+      const jellyfinSeriesId =
+        event.itemType === 'Episode' ? event.seriesId : event.itemId;
+      const seriesTitle = event.seriesName ?? event.name;
+
+      logger.info(
+        `[Webhook] ItemAdded received for anime ${event.itemType} "${seriesTitle}" (TVDB: ${tvdbId ?? 'unknown'}, JF ID: ${jellyfinSeriesId ?? 'unknown'}). Queuing series sync...`,
+      );
+
+      enqueueSeriesSync({
+        tvdbId,
+        jellyfinSeriesId,
+        seriesName: seriesTitle,
+        itemType: event.itemType,
+        libraryName,
+        debounceMs: options?.debounceMs,
+        customCatalogPath: options?.customCatalogPath,
+        customOverridesPath: options?.customOverridesPath,
+      });
+    } else {
+      logger.debug(
+        `[Webhook] ItemAdded received for non-anime item "${event.seriesName ?? event.name}" in library "${libraryName}". Skipping continuous sync.`,
+      );
+    }
+    return;
+  }
+
+  // 3. Ensure user has valid token (Simkl and/or AniList) for playback scrobbling
+  let simklToken: string | null = null;
+  try {
+    simklToken = await getOrRefreshUserToken(event.username);
+  } catch (err) {
+    logger.warn(`Failed to retrieve Simkl token for "${event.username}":`, err);
+  }
+
+  let anilistToken: string | null = null;
+  try {
+    anilistToken = getAniListUserToken(event.username);
+  } catch (err) {
+    logger.warn(`Failed to retrieve AniList token for "${event.username}":`, err);
+  }
+
+  if (!simklToken && !anilistToken) {
+    logger.warn(
+      `User "${event.username}" has no configured Simkl or AniList token. Nothing will be synced.`,
+    );
+    return;
+  }
 
   // 3. Handle PlaybackStart: immediately catch and alert on missing anime mappings
   const isPlaybackStart = (event.notificationType ?? '').toLowerCase() === 'playbackstart';

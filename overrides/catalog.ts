@@ -408,6 +408,7 @@ export interface SeriesSyncOptions {
   customCatalogPath?: string;
   customOverridesPath?: string;
   pruneDeletedOverrides?: boolean;
+  jellyfinSeriesId?: string;
 }
 
 export interface SeriesSyncSummary {
@@ -438,15 +439,16 @@ export const syncJellyfinSeries = async (
   };
 
   const catalogData = loadCatalog(options?.customCatalogPath);
-  const existingShow = catalogData.shows[tvdbId];
+  const existingShow = tvdbId ? catalogData.shows[tvdbId] : undefined;
 
   let item: any = null;
 
-  // 1. If we have jellyfinSeriesId from catalog, fetch directly by ID
-  if (existingShow?.jellyfinSeriesId) {
+  // 1. If we have jellyfinSeriesId (from options or catalog), fetch directly by ID
+  const targetSeriesId = options?.jellyfinSeriesId || existingShow?.jellyfinSeriesId;
+  if (targetSeriesId) {
     try {
       const itemUrl = new URL(`${jellyfinConfig.url}/Items`);
-      itemUrl.searchParams.set('ids', existingShow.jellyfinSeriesId);
+      itemUrl.searchParams.set('ids', targetSeriesId);
       itemUrl.searchParams.set('fields', 'ProviderIds,Name,Path,LocationType,Type');
       const itemRes = await fetch(itemUrl.toString(), { headers });
       if (itemRes.ok) {
@@ -455,14 +457,14 @@ export const syncJellyfinSeries = async (
       }
     } catch (err) {
       logger.warn(
-        `[Catalog] Failed fetching item directly by ID ${existingShow.jellyfinSeriesId}:`,
+        `[Catalog] Failed fetching item directly by ID ${targetSeriesId}:`,
         err,
       );
     }
   }
 
   // 2. If not found by ID, locate item by TVDB ID in target anime libraries
-  if (!item) {
+  if (!item && tvdbId) {
     const vFoldersRes = await fetch(`${jellyfinConfig.url}/Library/VirtualFolders`, { headers });
     if (!vFoldersRes.ok) {
       throw new Error(`Failed to fetch Jellyfin virtual folders: HTTP ${vFoldersRes.status}`);
@@ -497,12 +499,13 @@ export const syncJellyfinSeries = async (
     }
   }
 
-  // 3. If item is not found in Jellyfin at all, it was deleted
+  // 3. If item is not found in Jellyfin at all
   if (!item) {
     logger.info(
-      `[Catalog] Series TVDB ${tvdbId} no longer found in Jellyfin. Removing from catalog.`,
+      `[Catalog] Series TVDB ${tvdbId || targetSeriesId} was not found in Jellyfin.`,
     );
-    if (catalogData.shows[tvdbId]) {
+
+    if (tvdbId && catalogData.shows[tvdbId]) {
       delete catalogData.shows[tvdbId];
       catalogData.lastUpdated = new Date().toISOString();
       saveCatalog(catalogData, options?.customCatalogPath);
@@ -519,8 +522,8 @@ export const syncJellyfinSeries = async (
     }
 
     return {
-      tvdbId,
-      title: existingShow?.title || `Show ${tvdbId}`,
+      tvdbId: tvdbId || '',
+      title: existingShow?.title || `Show ${tvdbId || targetSeriesId || ''}`,
       deleted: true,
       totalEpisodes: 0,
       prunedOverridesCount,
@@ -528,10 +531,24 @@ export const syncJellyfinSeries = async (
   }
 
   // 4. Construct updated CatalogShow based on item type
-  const isMovie = item.Type?.toLowerCase() === 'movie';
   const p = item.ProviderIds || {};
+  const effectiveTvdbId = String(tvdbId || p.Tvdb || p.TVDB || '');
+  if (!effectiveTvdbId) {
+    logger.warn(
+      `[Catalog] Item "${item.Name}" (ID: ${item.Id}) has no TVDB ID in Jellyfin. Skipping catalog sync.`,
+    );
+    return {
+      tvdbId: '',
+      title: item.Name,
+      deleted: false,
+      totalEpisodes: 0,
+      prunedOverridesCount: 0,
+    };
+  }
+
+  const isMovie = item.Type?.toLowerCase() === 'movie';
   const show: CatalogShow = {
-    tvdbId,
+    tvdbId: effectiveTvdbId,
     title: item.Name,
     tmdbId: p.Tmdb || p.TMDB,
     jellyfinSeriesId: item.Id,
@@ -605,9 +622,9 @@ export const syncJellyfinSeries = async (
   }
 
   if (totalEpisodes === 0) {
-    delete catalogData.shows[tvdbId];
+    delete catalogData.shows[effectiveTvdbId];
   } else {
-    catalogData.shows[tvdbId] = show;
+    catalogData.shows[effectiveTvdbId] = show;
   }
 
   catalogData.lastUpdated = new Date().toISOString();
@@ -625,12 +642,12 @@ export const syncJellyfinSeries = async (
   }
 
   logger.info(
-    `[Catalog] Successfully synced series "${show.title}" (TVDB ${tvdbId}) from Jellyfin: ${totalEpisodes} episodes` +
+    `[Catalog] Successfully synced series "${show.title}" (TVDB ${effectiveTvdbId}) from Jellyfin: ${totalEpisodes} episodes` +
       (prunedOverridesCount > 0 ? ` (pruned ${prunedOverridesCount} deleted overrides)` : ''),
   );
 
   return {
-    tvdbId,
+    tvdbId: effectiveTvdbId,
     title: show.title,
     show,
     deleted: false,

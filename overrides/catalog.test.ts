@@ -37,6 +37,26 @@ describe('Jellyfin Anime Catalog & Sparse Overrides Pruner', () => {
         );
       }
 
+      // Direct item lookup by ID
+      if (url.includes('/Items') && url.includes('ids=')) {
+        if (url.includes('ids=jf-series-1')) {
+          return Promise.resolve(
+            new Response(
+              JSON.stringify({
+                Items: [
+                  {
+                    Id: 'jf-series-1',
+                    Name: 'Princess Lover!',
+                    Type: 'Series',
+                    ProviderIds: { Tvdb: '82310', Tmdb: '33333' },
+                  },
+                ],
+              }),
+            ),
+          );
+        }
+      }
+
       // Series in Anime folder
       if (url.includes('/Items') && url.includes('includeItemTypes=Series')) {
         return Promise.resolve(
@@ -290,5 +310,20 @@ describe('Jellyfin Anime Catalog & Sparse Overrides Pruner', () => {
     expect(summary.tvdbId).toBe('9999999');
     expect(summary.deleted).toBe(true);
     expect(summary.totalEpisodes).toBe(0);
+  });
+
+  test('syncJellyfinSeries should sync directly using jellyfinSeriesId option without searching folders', async () => {
+    const summary = await syncJellyfinSeries('', {
+      jellyfinSeriesId: 'jf-series-1',
+      customCatalogPath: tempCatalogPath,
+    });
+
+    expect(summary.tvdbId).toBe('82310');
+    expect(summary.title).toBe('Princess Lover!');
+    expect(summary.deleted).toBe(false);
+    expect(summary.totalEpisodes).toBe(1);
+
+    const loaded = loadCatalog(tempCatalogPath);
+    expect(loaded.shows['82310']).toBeDefined();
   });
 });

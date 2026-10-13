@@ -26,6 +26,7 @@ import {
   validateUserToken,
 } from './simkl/auth';
 import { flushAllAniListQueues } from './anilist/scrobbler';
+import { flushAllPendingSeriesSync } from './overrides/series-debouncer';
 import { flushAllQueues } from './simkl/batcher';
 
 import { initLogger } from './shared/logger';
@@ -470,6 +471,7 @@ const handleShutdown = async (signal: string) => {
   try {
     await flushAllQueues();
     await flushAllAniListQueues();
+    await flushAllPendingSeriesSync();
   } catch (err) {
     console.error('Error flushing queues during shutdown:', err);
   }
