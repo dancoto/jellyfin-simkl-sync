@@ -278,16 +278,72 @@ export const renderOverridesHtml = (): string => {
         }
 
         const s = data.summary;
-        showToast(
-          'Library synced! Found ' + s.catalogShowsCount + ' shows and ' + s.catalogEpisodesCount + ' episodes.',
-          'success'
-        );
+        let msg = 'Library synced! Found ' + s.catalogShowsCount + ' shows and ' + s.catalogEpisodesCount + ' episodes.';
+        if (s.prunedOverridesCount && s.prunedOverridesCount > 0) {
+          msg += ' Cleaned up ' + s.prunedOverridesCount + ' deleted override(s).';
+        }
+        showToast(msg, 'success');
         await loadOverrides();
       } catch (err) {
         showToast('Sync error: ' + err.message, 'error');
       } finally {
         btn.innerHTML = originalText;
         btn.disabled = false;
+      }
+    }
+
+    async function syncSeries(tvdbId) {
+      const btn = document.getElementById('sync-series-btn-' + tvdbId);
+      const originalText = btn ? btn.innerHTML : '🔄 Sync Series';
+      if (btn) {
+        btn.innerHTML = '🔄 Syncing...';
+        btn.disabled = true;
+      }
+
+      try {
+        const res = await fetch('/api/catalog/sync-series', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ tvdbId }),
+        });
+        const data = await res.json();
+        if (!res.ok || data.error) {
+          throw new Error(data.error || 'Failed to sync series');
+        }
+
+        const s = data.summary;
+        if (s.deleted) {
+          delete catalogData[tvdbId];
+          delete overridesData[tvdbId];
+          delete officialData[tvdbId];
+          dirtyShows.delete(tvdbId);
+          showToast('Series no longer found in Jellyfin. Removed from catalog.', 'info');
+        } else if (s.show) {
+          catalogData[tvdbId] = s.show;
+          if (data.official) {
+            officialData[tvdbId] = data.official;
+          }
+          let msg = 'Synced "' + (s.title || tvdbId) + '" from Jellyfin! (' + s.totalEpisodes + ' episodes)';
+          if (s.prunedOverridesCount > 0) {
+            msg += ' Cleaned up ' + s.prunedOverridesCount + ' deleted override(s).';
+            const ovrRes = await fetch('/api/overrides');
+            if (ovrRes.ok) {
+              const ovrData = await ovrRes.json();
+              overridesData = ovrData.overrides || {};
+            }
+          }
+          showToast(msg, 'success');
+        }
+
+        updateStats();
+        renderSeriesCards();
+      } catch (err) {
+        showToast('Sync error: ' + err.message, 'error');
+      } finally {
+        if (btn) {
+          btn.innerHTML = originalText;
+          btn.disabled = false;
+        }
       }
     }
 
@@ -576,6 +632,9 @@ export const renderOverridesHtml = (): string => {
                 </div>
               </div>
               <div class="series-actions">
+                <button class="btn btn-secondary btn-sm" onclick="event.stopPropagation(); syncSeries('\${tvdbId}')" id="sync-series-btn-\${tvdbId}" title="Sync this series from Jellyfin">
+                  🔄 Sync Series
+                </button>
                 <button class="btn btn-secondary btn-sm" onclick="event.stopPropagation(); saveShow('\${tvdbId}')" id="save-btn-\${tvdbId}" style="\${isModified ? 'opacity: 1;' : 'opacity: 0.6;'}">
                   💾 Save
                 </button>

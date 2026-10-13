@@ -7,6 +7,7 @@ import {
   handleRetireRedundantOverrides,
   handleSaveOverrides,
   handleSyncCatalog,
+  handleSyncSeries,
 } from './overrides/api';
 import { defaultJellyfinClient, type RawJellyfinPayload } from './jellyfin';
 import { handleWebhook } from './main';
@@ -147,6 +148,12 @@ const server = Bun.serve({
     },
     '/api/catalog/sync': {
       POST: handleSyncCatalog,
+    },
+    '/api/catalog/sync-series': {
+      POST: handleSyncSeries,
+    },
+    '/api/series/sync': {
+      POST: handleSyncSeries,
     },
     '/api/overrides/retire-redundant': {
       POST: (req) => handleRetireRedundantOverrides(req),

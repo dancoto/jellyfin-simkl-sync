@@ -7,6 +7,7 @@ import {
   handleRetireRedundantOverrides,
   handleSaveOverrides,
   handleSyncCatalog,
+  handleSyncSeries,
 } from './api';
 
 describe('Overrides Web Endpoints', () => {
@@ -30,6 +31,8 @@ describe('Overrides Web Endpoints', () => {
     expect(html).toContain('Override AniList');
     expect(html).toContain('Retire Redundant');
     expect(html).toContain('retire-btn');
+    expect(html).toContain('Sync Series');
+    expect(html).toContain('sync-series-btn');
   });
 
   test('handleGetOverrides should return 200 with overrides, catalog, filePath, and official mappings', async () => {
@@ -49,6 +52,11 @@ describe('Overrides Web Endpoints', () => {
     // Verify official movie mapping resolution (e.g. Your Name. TVDB 197 -> AniList 21519)
     if (data.catalog?.['197']) {
       expect(data.official?.['197']?.['0']?.['1']?.anilistId).toBe(21519);
+    }
+
+    // Verify that deleted specials (e.g. Bikini Warriors S0E2) are not resurrected into catalog
+    if (data.catalog?.['295897']) {
+      expect(data.catalog['295897'].seasons?.['0']?.episodes?.['2']).toBeUndefined();
     }
   });
 
@@ -165,6 +173,34 @@ describe('Overrides Web Endpoints', () => {
       if (existsSync(tempOverridesPath)) {
         unlinkSync(tempOverridesPath);
       }
+    }
+  });
+
+  test('handleSyncSeries should reject missing tvdbId with 400', async () => {
+    const req = new Request('http://localhost:3000/api/catalog/sync-series', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({}),
+    });
+    const res = await handleSyncSeries(req);
+    expect(res.status).toBe(400);
+  });
+
+  test('handleSyncSeries should return 200 with summary and official mappings for valid series', async () => {
+    // 295897 is Bikini Warriors
+    const req = new Request('http://localhost:3000/api/catalog/sync-series', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tvdbId: '295897' }),
+    });
+    const res = await handleSyncSeries(req);
+    expect([200, 500]).toContain(res.status);
+    if (res.status === 200) {
+      const data = (await res.json()) as any;
+      expect(data.success).toBe(true);
+      expect(data.summary).toBeDefined();
+      expect(data.summary.tvdbId).toBe('295897');
+      expect(data.official).toBeDefined();
     }
   });
 });

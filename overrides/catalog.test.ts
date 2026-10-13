@@ -5,6 +5,7 @@ import {
   pruneSparseOverrides,
   saveCatalog,
   syncJellyfinCatalog,
+  syncJellyfinSeries,
   type CatalogData,
 } from './catalog';
 import { appConfig } from '../shared/config';
@@ -247,5 +248,47 @@ describe('Jellyfin Anime Catalog & Sparse Overrides Pruner', () => {
       'New Ep 1 (Virtual Future)',
     );
     expect(loaded.shows['555666']).toBeDefined(); // Movie
+  });
+
+  test('syncJellyfinSeries should sync a single series from Jellyfin without scanning other shows', async () => {
+    const summary = await syncJellyfinSeries('82310', {
+      customCatalogPath: tempCatalogPath,
+    });
+
+    expect(summary.tvdbId).toBe('82310');
+    expect(summary.title).toBe('Princess Lover!');
+    expect(summary.deleted).toBe(false);
+    expect(summary.totalEpisodes).toBe(1); // Real special only; virtual special excluded
+    expect(summary.show).toBeDefined();
+    expect(summary.show?.seasons['0']?.episodes['1']?.name).toBe('OVA 1');
+
+    const loaded = loadCatalog(tempCatalogPath);
+    expect(loaded.shows['82310']).toBeDefined();
+    expect(loaded.shows['999111']).toBeUndefined(); // Other shows were NOT scanned
+  });
+
+  test('syncJellyfinSeries should sync a single movie from Jellyfin', async () => {
+    const summary = await syncJellyfinSeries('555666', {
+      customCatalogPath: tempCatalogPath,
+    });
+
+    expect(summary.tvdbId).toBe('555666');
+    expect(summary.title).toBe('Anime Movie');
+    expect(summary.deleted).toBe(false);
+    expect(summary.totalEpisodes).toBe(1);
+    expect(summary.show?.seasons['0']?.episodes['1']?.name).toBe('Anime Movie');
+
+    const loaded = loadCatalog(tempCatalogPath);
+    expect(loaded.shows['555666']).toBeDefined();
+  });
+
+  test('syncJellyfinSeries should mark deleted when series does not exist in Jellyfin', async () => {
+    const summary = await syncJellyfinSeries('9999999', {
+      customCatalogPath: tempCatalogPath,
+    });
+
+    expect(summary.tvdbId).toBe('9999999');
+    expect(summary.deleted).toBe(true);
+    expect(summary.totalEpisodes).toBe(0);
   });
 });

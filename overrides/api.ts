@@ -9,6 +9,7 @@ import {
   loadCatalog,
   pruneSparseOverrides,
   syncJellyfinCatalog,
+  syncJellyfinSeries,
   type AnimeCatalog,
   type CatalogSyncOptions,
 } from './catalog';
@@ -57,7 +58,7 @@ export const handleGetOverrides = async (): Promise<Response> => {
   const catalogData = loadCatalog();
   const catalogShows: AnimeCatalog = { ...catalogData.shows };
 
-  // Ensure any shows present in overrides are also present in catalog
+  // Ensure any shows present in overrides but missing from catalog are represented
   for (const [tvdbId, show] of Object.entries(overrides)) {
     if (!catalogShows[tvdbId]) {
       catalogShows[tvdbId] = {
@@ -66,22 +67,15 @@ export const handleGetOverrides = async (): Promise<Response> => {
         tmdbId: show.tmdbId,
         seasons: {},
       };
-    }
-    const catShow = catalogShows[tvdbId];
-    for (const [sKey, sea] of Object.entries(show.seasons || {})) {
-      const sNum = parseInt(sKey, 10);
-      if (!catShow.seasons[sKey]) {
-        catShow.seasons[sKey] = {
+      for (const [sKey, sea] of Object.entries(show.seasons || {})) {
+        const sNum = parseInt(sKey, 10);
+        catalogShows[tvdbId].seasons[sKey] = {
           seasonNumber: sNum,
           episodes: {},
         };
-      }
-      const catSea = catShow.seasons[sKey];
-      for (const [eKey, ep] of Object.entries(sea.episodes || {})) {
-        const eNum = parseInt(eKey, 10);
-        if (!catSea.episodes[eKey]) {
-          catSea.episodes[eKey] = {
-            episodeNumber: eNum,
+        for (const [eKey, ep] of Object.entries(sea.episodes || {})) {
+          catalogShows[tvdbId].seasons[sKey].episodes[eKey] = {
+            episodeNumber: parseInt(eKey, 10),
             name: ep.name,
           };
         }
@@ -211,7 +205,12 @@ export const handleSyncCatalog = async (req: Request): Promise<Response> => {
       }
     }
 
-    const summary = await syncJellyfinCatalog(options);
+    const effectiveOptions: CatalogSyncOptions = {
+      ...options,
+      pruneDeletedOverrides: options?.pruneDeletedOverrides !== false,
+    };
+
+    const summary = await syncJellyfinCatalog(effectiveOptions);
     return Response.json({
       success: true,
       summary,
@@ -259,6 +258,83 @@ export const handleRetireRedundantOverrides = async (
     });
   } catch (err) {
     console.error('Error retiring redundant overrides:', err);
+    return Response.json(
+      { error: err instanceof Error ? err.message : String(err) },
+      { status: 500 },
+    );
+  }
+};
+
+export const handleSyncSeries = async (req: Request): Promise<Response> => {
+  try {
+    const body = (await req.json()) as {
+      tvdbId?: string;
+      customCatalogPath?: string;
+      customOverridesPath?: string;
+    };
+
+    if (!body.tvdbId) {
+      return Response.json({ error: 'Missing tvdbId parameter' }, { status: 400 });
+    }
+
+    const summary = await syncJellyfinSeries(body.tvdbId, {
+      customCatalogPath: body.customCatalogPath,
+      customOverridesPath: body.customOverridesPath,
+      pruneDeletedOverrides: true,
+    });
+
+    const officialForShow: Record<
+      string,
+      Record<string, { anilistId: number; anilistEpisode: number } | null>
+    > = {};
+
+    if (summary.show) {
+      for (const [seasonNumStr, season] of Object.entries(summary.show.seasons || {})) {
+        const seasonNum = parseInt(seasonNumStr, 10);
+        officialForShow[seasonNumStr] = {};
+        for (const [epNumStr] of Object.entries(season.episodes || {})) {
+          const epNum = parseInt(epNumStr, 10);
+          let resolved = defaultAnimeResolver.resolveOfficialEpisode(
+            { tvdbId: summary.tvdbId, tmdbId: summary.show.tmdbId },
+            seasonNum,
+            epNum,
+          );
+
+          if (!resolved?.anilist && seasonNum === 0 && epNum === 1) {
+            const movieResolved = defaultAnimeResolver.resolveOfficialMovie({
+              tvdbId: summary.tvdbId,
+              tmdbId: summary.show.tmdbId,
+            });
+            if (movieResolved?.anilist) {
+              resolved = {
+                episodeNumber: movieResolved.episodeNumber,
+                isSpecial: false,
+                kind: 'regular',
+                source: movieResolved.source,
+                anilist: movieResolved.anilist,
+              };
+            }
+          }
+
+          if (resolved?.anilist) {
+            officialForShow[seasonNumStr][epNumStr] = {
+              anilistId: resolved.anilist.mediaId,
+              anilistEpisode: resolved.anilist.episodeNumber,
+            };
+          } else {
+            officialForShow[seasonNumStr][epNumStr] = null;
+          }
+        }
+      }
+    }
+
+    return Response.json({
+      success: true,
+      summary,
+      official: officialForShow,
+    });
+  } catch (err) {
+    console.error('Error syncing series from Jellyfin:', err);
     return Response.json(
       { error: err instanceof Error ? err.message : String(err) },
       { status: 500 },
