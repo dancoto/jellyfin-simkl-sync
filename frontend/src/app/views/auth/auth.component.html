@@ -329,14 +329,15 @@
                     <!-- Actions Cell -->
                     <td class="actions-cell">
                       @if (user.simkl.hasRefreshToken) {
+                        @let isRefreshing = store.refreshingUsersSet().has(user.username);
                         <button
                           mat-stroked-button
                           class="action-sm-btn"
-                          [disabled]="store.refreshingUsers().includes(user.username)"
+                          [disabled]="isRefreshing"
                           matTooltip="Manually trigger OAuth token refresh for Simkl"
                           (click)="store.refreshUser(user.username)"
                         >
-                          {{ store.refreshingUsers().includes(user.username) ? '↻...' : '↻ Refresh' }}
+                          {{ isRefreshing ? '↻...' : '↻ Refresh' }}
                         </button>
                       }
                       @if (data.simkl.configured) {

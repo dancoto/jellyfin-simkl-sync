@@ -41,6 +41,8 @@ export const AuthStore = signalStore(
     const simklConfig = computed(() => store.data()?.simkl);
     const anilistConfig = computed(() => store.data()?.anilist);
 
+    const refreshingUsersSet = computed(() => new Set(store.refreshingUsers()));
+
     return {
       isCustomUser: isCustom,
       targetUsername,
@@ -48,6 +50,7 @@ export const AuthStore = signalStore(
       jellyfinUsers,
       simklConfig,
       anilistConfig,
+      refreshingUsersSet,
     };
   }),
   withMethods((store, api = inject(ApiService)) => {

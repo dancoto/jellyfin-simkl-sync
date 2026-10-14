@@ -66,9 +66,9 @@
               [show]="entry[1]"
               [overrideShow]="store.overridesData()[entry[0]]"
               [officialShow]="store.officialData()[entry[0]]"
-              [isModified]="store.dirtyShows().includes(entry[0])"
+              [isModified]="store.dirtyShowsSet().has(entry[0])"
               [isOpen]="store.allExpanded() || store.openCardsSet().has(entry[0])"
-              [isSyncing]="store.syncingSeriesIds().includes(entry[0])"
+              [isSyncing]="store.syncingSeriesSet().has(entry[0])"
               (toggleOpen)="store.toggleCard(entry[0])"
               (syncSeries)="store.syncSeries($event)"
               (saveSeries)="store.saveShow($event)"
@@ -119,15 +119,19 @@
   }
 
   <!-- Modals -->
-  <app-bulk-import-modal
-    [isOpen]="store.isBulkImportOpen()"
-    (close)="store.setBulkImportOpen(false)"
-    (synced)="store.loadData()"
-  />
+  @if (store.isBulkImportOpen()) {
+    <app-bulk-import-modal
+      [isOpen]="store.isBulkImportOpen()"
+      (close)="store.setBulkImportOpen(false)"
+      (synced)="store.loadData()"
+    />
+  }
 
-  <app-retire-redundant-modal
-    [isOpen]="store.isRetireOpen()"
-    (close)="store.setRetireOpen(false)"
-    (retired)="store.loadData()"
-  />
+  @if (store.isRetireOpen()) {
+    <app-retire-redundant-modal
+      [isOpen]="store.isRetireOpen()"
+      (close)="store.setRetireOpen(false)"
+      (retired)="store.loadData()"
+    />
+  }
 </div>

@@ -227,12 +227,30 @@ export function calculateFilterCounts(
 
   for (const [id, show] of Object.entries(catalog)) {
     all++;
-    const missing = countMissingInShow(overrides, official, id, show);
-    if (missing > 0) unmapped++;
-    else complete++;
+    let hasMissing = false;
+    let hasOverridden = false;
+    let hasSkipped = false;
 
-    if (countOverriddenInShow(overrides, official, id, show) > 0) overridesCount++;
-    if (countSkippedInShow(overrides, id, show) > 0) skipped++;
+    for (const [seasonNum, season] of Object.entries(show.seasons || {})) {
+      for (const [epNum] of Object.entries(season.episodes || {})) {
+        if (!hasSkipped && isEpSkipped(overrides, id, seasonNum, epNum)) {
+          hasSkipped = true;
+        }
+        if (!hasMissing && isEpMissingAniList(overrides, official, id, seasonNum, epNum)) {
+          hasMissing = true;
+        }
+        if (!hasOverridden && isEpOverridden(overrides, official, id, seasonNum, epNum)) {
+          hasOverridden = true;
+        }
+        if (hasMissing && hasOverridden && hasSkipped) break;
+      }
+      if (hasMissing && hasOverridden && hasSkipped) break;
+    }
+
+    if (hasMissing) unmapped++;
+    else complete++;
+    if (hasOverridden) overridesCount++;
+    if (hasSkipped) skipped++;
   }
 
   return { all, unmapped, overrides: overridesCount, skipped, complete };
@@ -274,33 +292,37 @@ export function filterAndSortShows(
     return true;
   });
 
-  filtered.sort(([idA, showA], [idB, showB]) => {
-    if (sort === 'missing-desc') {
-      const diff =
-        countMissingInShow(overrides, official, idB, showB) -
-        countMissingInShow(overrides, official, idA, showA);
+  if (sort === 'missing-desc' || sort === 'missing-asc') {
+    const missingMap = new Map<string, number>();
+    for (const [id, show] of filtered) {
+      missingMap.set(id, countMissingInShow(overrides, official, id, show));
+    }
+    filtered.sort(([idA, showA], [idB, showB]) => {
+      const countA = missingMap.get(idA)!;
+      const countB = missingMap.get(idB)!;
+      const diff = sort === 'missing-desc' ? countB - countA : countA - countB;
       if (diff !== 0) return diff;
       return (showA.title || '').localeCompare(showB.title || '');
+    });
+  } else if (sort === 'overridden-desc') {
+    const overriddenMap = new Map<string, number>();
+    for (const [id, show] of filtered) {
+      overriddenMap.set(id, countOverriddenInShow(overrides, official, id, show));
     }
-    if (sort === 'overridden-desc') {
-      const diff =
-        countOverriddenInShow(overrides, official, idB, showB) -
-        countOverriddenInShow(overrides, official, idA, showA);
+    filtered.sort(([idA, showA], [idB, showB]) => {
+      const countA = overriddenMap.get(idA)!;
+      const countB = overriddenMap.get(idB)!;
+      const diff = countB - countA;
       if (diff !== 0) return diff;
       return (showA.title || '').localeCompare(showB.title || '');
-    }
-    if (sort === 'missing-asc') {
-      const diff =
-        countMissingInShow(overrides, official, idA, showA) -
-        countMissingInShow(overrides, official, idB, showB);
-      if (diff !== 0) return diff;
+    });
+  } else if (sort === 'title-asc') {
+    filtered.sort(([, showA], [, showB]) => {
       return (showA.title || '').localeCompare(showB.title || '');
-    }
-    if (sort === 'title-asc') {
-      return (showA.title || '').localeCompare(showB.title || '');
-    }
-    return idA.localeCompare(idB);
-  });
+    });
+  } else {
+    filtered.sort(([idA], [idB]) => idA.localeCompare(idB));
+  }
 
   return filtered;
 }

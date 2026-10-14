@@ -33,8 +33,9 @@
       matTooltip="AniList Episode Number"
       (change)="onEpisodeChange($event)"
     />
-    <span class="override-pill" [class]="statusPill().class" [matTooltip]="statusPill().title">
-      {{ statusPill().text }}
+    @let pill = statusPill();
+    <span class="override-pill" [class]="pill.class" [matTooltip]="pill.title">
+      {{ pill.text }}
     </span>
   </div>
 </td>
@@ -49,14 +50,15 @@
     >
       📋 Official
     </button>
+    @let skipped = isAniListSkipped();
     <button
       mat-stroked-button
       class="action-btn"
-      [class.btn-anilist-skipped]="isAniListSkipped()"
-      [matTooltip]="isAniListSkipped() ? 'AniList skipped. Click to unskip.' : 'Skip AniList for this episode (will use TVDB for Simkl)'"
+      [class.btn-anilist-skipped]="skipped"
+      [matTooltip]="skipped ? 'AniList skipped. Click to unskip.' : 'Skip AniList for this episode (will use TVDB for Simkl)'"
       (click)="toggleSkip.emit()"
     >
-      🌸 {{ isAniListSkipped() ? 'Skipped' : 'Skip' }}
+      🌸 {{ skipped ? 'Skipped' : 'Skip' }}
     </button>
     <button
       mat-stroked-button

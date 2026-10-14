@@ -36,23 +36,24 @@
         >
           🌸 Search AniList ↗
         </a>
-        @if (showStats().missing > 0) {
+        @let stats = showStats();
+        @if (stats.missing > 0) {
           <span class="badge badge-missing">
-            🌸 {{ showStats().missing }} Missing AniList
+            🌸 {{ stats.missing }} Missing AniList
           </span>
         } @else {
           <span class="badge badge-ok">
-            ✓ {{ showStats().total }} Mapped
+            ✓ {{ stats.total }} Mapped
           </span>
         }
-        @if (showStats().overridden > 0) {
+        @if (stats.overridden > 0) {
           <span class="badge badge-custom">
-            ⚡ {{ showStats().overridden }} Custom Overrides
+            ⚡ {{ stats.overridden }} Custom Overrides
           </span>
         }
-        @if (showStats().skipped > 0) {
+        @if (stats.skipped > 0) {
           <span class="badge badge-anilist-skipped">
-            🌸 {{ showStats().skipped }} Skipped
+            🌸 {{ stats.skipped }} Skipped
           </span>
         }
       </div>
