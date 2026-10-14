@@ -1,0 +1,89 @@
+@if (isOpen()) {
+  <div class="modal-backdrop" (click)="handleClose()">
+    <div class="modal-dialog" (click)="$event.stopPropagation()">
+      <div class="modal-header">
+        <h3>🧹 Retire Redundant Overrides</h3>
+        <button class="close-btn" (click)="handleClose()">✕</button>
+      </div>
+
+      <div class="modal-body">
+        @if (!summaryResult() && !isLoading()) {
+          <div>
+            <p class="desc">
+              This will scan your custom overrides in <code>mapping-overrides.json</code> and retire (delete)
+              any episode overrides that are <strong>100% identical</strong> to upstream AniBridge official mappings.
+            </p>
+            <ul class="info-list">
+              <li>✅ Allows those episodes to follow upstream mappings automatically</li>
+              <li>🔒 <strong>Explicit skips</strong> and <strong>explicit unmapped nulls</strong> will <em>never</em> be touched</li>
+              <li>💾 A timestamped backup of your overrides will be created automatically before saving</li>
+            </ul>
+          </div>
+        }
+
+        @if (isLoading()) {
+          <div class="loading-state">
+            <span class="spinner">⏳</span>
+            <p>Analyzing and retiring redundant overrides...</p>
+          </div>
+        }
+
+        @if (summaryResult(); as summary) {
+          <div class="result-box">
+            @if (summary.retiredCount > 0) {
+              <div class="success-result">
+                <h4>✓ Retired {{ summary.retiredCount }} Redundant Override(s)!</h4>
+                <p>Cleaned up across {{ summary.affectedShowsCount }} show(s).</p>
+                @if (summary.backupPath) {
+                  <p class="backup-note">
+                    Backup created at: <code>{{ summary.backupPath }}</code>
+                  </p>
+                }
+                @if (summary.affectedShowTitles.length) {
+                  <div class="affected-list">
+                    <span class="affected-label">Affected shows:</span>
+                    <ul>
+                      @for (title of summary.affectedShowTitles; track title) {
+                        <li>{{ title }}</li>
+                      }
+                    </ul>
+                  </div>
+                }
+              </div>
+            } @else {
+              <div class="info-result">
+                <h4>✓ All Overrides Unique</h4>
+                <p>No redundant overrides found. All custom overrides diverge from official mappings.</p>
+              </div>
+            }
+          </div>
+        }
+
+        @if (errorMessage(); as err) {
+          <div class="error-msg">
+            {{ err }}
+          </div>
+        }
+      </div>
+
+      <div class="modal-footer">
+        @if (!summaryResult()) {
+          <button class="btn btn-secondary" [disabled]="isLoading()" (click)="handleClose()">
+            Cancel
+          </button>
+          <button
+            class="btn btn-primary"
+            [disabled]="isLoading()"
+            (click)="handleConfirm()"
+          >
+            {{ isLoading() ? 'Retiring...' : 'Yes, Retire Redundant' }}
+          </button>
+        } @else {
+          <button class="btn btn-primary" (click)="handleClose()">
+            Done
+          </button>
+        }
+      </div>
+    </div>
+  </div>
+}

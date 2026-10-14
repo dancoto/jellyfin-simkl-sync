@@ -1,4 +1,12 @@
-# Use the official lightweight Bun image on Alpine Linux
+# Stage 1: Build the Angular 22 frontend
+FROM oven/bun:1-alpine AS frontend-builder
+WORKDIR /usr/src/frontend
+COPY frontend/package.json frontend/bun.lock ./
+RUN bun install --frozen-lockfile
+COPY frontend/ ./
+RUN bun run build
+
+# Stage 2: Production runtime
 FROM oven/bun:1-alpine
 
 # Install timezone data
@@ -18,6 +26,9 @@ RUN bun install --frozen-lockfile
 
 # Copy the rest of the application source code
 COPY --chown=bun:bun . .
+
+# Copy built frontend assets from builder stage into public directory
+COPY --from=frontend-builder --chown=bun:bun /usr/src/public ./public
 
 # Use non-root user for security
 USER bun

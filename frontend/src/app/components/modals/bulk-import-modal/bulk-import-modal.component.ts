@@ -1,0 +1,50 @@
+import { Component, DestroyRef, inject, input, output, signal } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { ApiService } from '../../../services/api.service';
+import { CatalogSyncResult } from '../../../models/types';
+
+@Component({
+  selector: 'app-bulk-import-modal',
+  templateUrl: './bulk-import-modal.component.html',
+  styleUrl: './bulk-import-modal.component.css',
+})
+export class BulkImportModalComponent {
+  private api = inject(ApiService);
+  private destroyRef = inject(DestroyRef);
+
+  isOpen = input<boolean>(false);
+  close = output<void>();
+  synced = output<void>();
+
+  isLoading = signal(false);
+  pruneDeleted = signal(true);
+  summaryResult = signal<CatalogSyncResult | null>(null);
+  errorMessage = signal<string | null>(null);
+
+  handleSync() {
+    this.isLoading.set(true);
+    this.errorMessage.set(null);
+    this.summaryResult.set(null);
+
+    this.api
+      .syncLibrary()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: res => {
+          this.summaryResult.set((res as any).summary || res);
+          this.isLoading.set(false);
+          this.synced.emit();
+        },
+        error: err => {
+          this.errorMessage.set(err.message || 'Failed to sync library');
+          this.isLoading.set(false);
+        },
+      });
+  }
+
+  handleClose() {
+    this.summaryResult.set(null);
+    this.errorMessage.set(null);
+    this.close.emit();
+  }
+}

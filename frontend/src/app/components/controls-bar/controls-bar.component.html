@@ -1,0 +1,119 @@
+<div class="controls-bar">
+  <div class="search-box">
+    <span class="search-icon">🔍</span>
+    <input
+      type="text"
+      [value]="search()"
+      placeholder="Search by title or TVDB ID..."
+      (input)="onSearchInput($event)"
+    />
+  </div>
+
+  <div class="sort-box">
+    <span class="sort-label">Sort:</span>
+    <select
+      [value]="sort()"
+      class="sort-select"
+      (change)="onSortChange($event)"
+    >
+      <option value="missing-desc">🌸 Most Missing AniList</option>
+      <option value="overridden-desc">⚡ Most Custom Overrides</option>
+      <option value="missing-asc">Least Missing AniList</option>
+      <option value="title-asc">Title (A → Z)</option>
+      <option value="default">Default (TVDB ID)</option>
+    </select>
+  </div>
+
+  <div class="filter-tabs">
+    <button
+      class="filter-btn"
+      [class.active]="filter() === 'all'"
+      (click)="filterChange.emit('all')"
+    >
+      All Shows
+      @if (filterCounts(); as counts) {
+        <span class="tab-badge">{{ counts.all }}</span>
+      }
+    </button>
+    <button
+      class="filter-btn"
+      [class.active]="filter() === 'unmapped' || filter() === 'missing-anilist'"
+      (click)="filterChange.emit('unmapped')"
+    >
+      🌸 Only Missing AniList
+      @if (filterCounts(); as counts) {
+        <span class="tab-badge">{{ counts.unmapped }}</span>
+      }
+    </button>
+    <button
+      class="filter-btn"
+      [class.active]="filter() === 'overrides' || filter() === 'overridden'"
+      (click)="filterChange.emit('overrides')"
+    >
+      ⚡ Custom Overrides
+      @if (filterCounts(); as counts) {
+        <span class="tab-badge">{{ counts.overrides }}</span>
+      }
+    </button>
+    <button
+      class="filter-btn"
+      [class.active]="filter() === 'skipped' || filter() === 'skipped-anilist'"
+      (click)="filterChange.emit('skipped')"
+    >
+      🌸 Skipped AniList
+      @if (filterCounts(); as counts) {
+        <span class="tab-badge">{{ counts.skipped }}</span>
+      }
+    </button>
+    <button
+      class="filter-btn"
+      [class.active]="filter() === 'mapped' || filter() === 'complete'"
+      (click)="filterChange.emit('mapped')"
+    >
+      Completed
+      @if (filterCounts(); as counts) {
+        <span class="tab-badge">{{ counts.complete }}</span>
+      }
+    </button>
+
+    <div class="actions-group">
+      <button
+        class="btn btn-secondary btn-sm"
+        [disabled]="isSyncing()"
+        title="Scan Jellyfin anime libraries and refresh catalog cache"
+        (click)="syncLibrary.emit()"
+      >
+        @if (isSyncing()) {
+          <span class="spinner-inline">⏳</span>
+        } @else {
+          <span>🔄</span>
+        }
+        {{ isSyncing() ? 'Syncing Library...' : 'Sync Library' }}
+      </button>
+
+      <button
+        class="btn btn-secondary btn-sm"
+        [disabled]="isRetiring()"
+        title="Retire custom overrides that are 100% identical to official AniBridge mappings"
+        (click)="retireRedundant.emit()"
+      >
+        🧹 Retire Redundant
+      </button>
+
+      <button
+        class="btn btn-secondary btn-sm"
+        title="Bulk import official AniBridge / anime-lists mappings into custom overrides"
+        (click)="bulkImport.emit()"
+      >
+        📥 Bulk Import
+      </button>
+
+      <button
+        class="btn btn-secondary btn-sm"
+        (click)="toggleExpandAll.emit()"
+      >
+        {{ allExpanded() ? 'Collapse All' : 'Expand All' }}
+      </button>
+    </div>
+  </div>
+</div>

@@ -1,0 +1,174 @@
+<div class="series-card" [class.modified]="isModified()">
+  <div class="series-header" (click)="toggleOpen.emit()">
+    <div class="series-title-group">
+      <div class="series-title">
+        <span>{{ show().title || 'Unknown Title' }}</span>
+        @if (isModified()) {
+          <span class="modified-tag">● Modified</span>
+        }
+      </div>
+      <div class="series-badges">
+        <a
+          [href]="'https://thetvdb.com/dereferrer/series/' + tvdbId()"
+          target="_blank"
+          class="badge badge-tvdb"
+          title="View series on TheTVDB"
+          (click)="$event.stopPropagation()"
+        >
+          TVDB {{ tvdbId() }} ↗
+        </a>
+        @if (show().tmdbId) {
+          <span class="badge badge-tmdb">
+            TMDB {{ show().tmdbId }}
+          </span>
+        }
+        <a
+          [href]="'https://anilist.co/search/anime?search=' + (show().title || '')"
+          target="_blank"
+          class="badge badge-search"
+          title="Search series on AniList"
+          (click)="$event.stopPropagation()"
+        >
+          🌸 Search AniList ↗
+        </a>
+        @if (showStats().missing > 0) {
+          <span class="badge badge-missing">
+            🌸 {{ showStats().missing }} Missing AniList
+          </span>
+        } @else {
+          <span class="badge badge-ok">
+            ✓ {{ showStats().total }} Mapped
+          </span>
+        }
+        @if (showStats().overridden > 0) {
+          <span class="badge badge-custom">
+            ⚡ {{ showStats().overridden }} Custom Overrides
+          </span>
+        }
+        @if (showStats().skipped > 0) {
+          <span class="badge badge-anilist-skipped">
+            🌸 {{ showStats().skipped }} Skipped
+          </span>
+        }
+      </div>
+    </div>
+
+    <div class="series-actions">
+      <button
+        class="btn btn-secondary btn-sm"
+        [disabled]="isSyncing()"
+        title="Sync this series from Jellyfin"
+        (click)="$event.stopPropagation(); syncSeries.emit(tvdbId())"
+      >
+        @if (isSyncing()) {
+          <span class="spinner-inline">⏳</span>
+        } @else {
+          <span>🔄</span>
+        }
+        {{ isSyncing() ? 'Syncing...' : 'Sync Series' }}
+      </button>
+      <button
+        class="btn btn-secondary btn-sm"
+        [class.btn-highlight]="isModified()"
+        title="Save overrides for this series"
+        (click)="$event.stopPropagation(); saveSeries.emit(tvdbId())"
+      >
+        💾 Save
+      </button>
+      <span class="chevron" [class.open]="isOpen()">▼</span>
+    </div>
+  </div>
+
+  <!-- Lazy DOM Rendering: episode elements only exist when accordion is open -->
+  @if (isOpen()) {
+    <div class="series-body">
+      @for (season of sortedSeasons(); track season.seasonNum) {
+        <div class="season-section">
+          <div class="season-header">
+            <div class="season-title-box">
+              <span>{{ season.label }}</span>
+              @if (season.isSeasonAllSkipped) {
+                <span class="badge badge-anilist-skipped">
+                  🌸 Season Skipped (AniList)
+                </span>
+              }
+            </div>
+            <span class="season-counts">
+              {{ season.episodes.length }} episodes
+              @if (season.seasonMissing > 0) {
+                · <span class="count-missing">🌸 {{ season.seasonMissing }} missing AniList</span>
+              }
+              @if (season.seasonOverridden > 0) {
+                · <span class="count-overridden">⚡ {{ season.seasonOverridden }} overridden</span>
+              }
+              @if (season.seasonSkipped > 0 && !season.isSeasonAllSkipped) {
+                · <span class="count-skipped">🌸 {{ season.seasonSkipped }} skipped</span>
+              }
+            </span>
+          </div>
+
+          <div class="batch-fill-bar">
+            <span class="batch-label">🌸 Batch Fill {{ season.label }}:</span>
+            <input
+              type="number"
+              class="id-input"
+              placeholder="AniList ID"
+              [value]="batchInputs()[season.seasonNum] || ''"
+              (input)="updateBatchInput(season.seasonNum, $event)"
+              (keyup.enter)="handleApplyBatch(season.seasonNum)"
+            />
+            <button
+              class="btn btn-secondary btn-sm"
+              (click)="handleApplyBatch(season.seasonNum)"
+            >
+              Apply to Season
+            </button>
+            <button
+              class="btn btn-secondary btn-sm"
+              title="Copy official AniList mappings for all episodes in this season"
+              (click)="applyOfficialSeason.emit({ seasonNum: season.seasonNum })"
+            >
+              📋 Apply Official to Season
+            </button>
+            <button
+              class="btn btn-secondary btn-sm"
+              title="Mark all unmapped episodes in this season as skipped for AniList"
+              (click)="skipUnmappedSeason.emit({ seasonNum: season.seasonNum })"
+            >
+              🌸 Skip Unmapped
+            </button>
+          </div>
+
+          <table class="ep-table">
+            <thead>
+              <tr>
+                <th style="width: 55px;">Ep</th>
+                <th style="min-width: 220px;">Title</th>
+                <th style="width: 190px;">Official AniList</th>
+                <th style="width: 270px;">Override AniList</th>
+                <th style="width: 180px; text-align: center;">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (ep of season.episodes; track ep[0]) {
+                <tr
+                  app-episode-row
+                  [tvdbId]="tvdbId()"
+                  [seasonNum]="season.seasonNum"
+                  [epNum]="ep[0]"
+                  [epName]="ep[1].name || ('Episode ' + ep[0])"
+                  [official]="getOfficialEp(season.seasonNum, ep[0])"
+                  [override]="getOverrideEp(season.seasonNum, ep[0])"
+                  (updateField)="updateEpisode.emit({ seasonNum: season.seasonNum, epNum: ep[0], field: $event.field, value: $event.value })"
+                  (useOfficial)="useOfficialEpisode.emit({ seasonNum: season.seasonNum, epNum: ep[0] })"
+                  (toggleSkip)="toggleSkipEpisode.emit({ seasonNum: season.seasonNum, epNum: ep[0] })"
+                  (clearOverride)="clearOverrideEpisode.emit({ seasonNum: season.seasonNum, epNum: ep[0] })"
+                ></tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      }
+    </div>
+  }
+</div>

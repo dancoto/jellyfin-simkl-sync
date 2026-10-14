@@ -1,0 +1,187 @@
+:host {
+  display: table-row;
+}
+
+:host(.skipped-anilist-row) td {
+  background: rgba(192, 132, 252, 0.04);
+}
+
+:host(.missing-anilist-row) td {
+  background: rgba(244, 114, 182, 0.04);
+}
+
+:host(.overridden-row) td {
+  background: rgba(245, 158, 11, 0.04);
+}
+
+.ep-num {
+  font-weight: 700;
+  color: #fff;
+  width: 55px;
+}
+
+.ep-name {
+  color: var(--text);
+  max-width: 260px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.official-sub {
+  opacity: 0.8;
+  font-weight: normal;
+}
+
+.badge-official {
+  background: rgba(56, 189, 248, 0.15);
+  color: #38bdf8;
+  border: 1px solid rgba(56, 189, 248, 0.3);
+  font-family: monospace;
+  font-size: 0.78rem;
+  text-decoration: none;
+  padding: 0.2rem 0.5rem;
+  border-radius: 6px;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  transition: background 0.15s;
+}
+
+.badge-official:hover {
+  background: rgba(56, 189, 248, 0.25);
+}
+
+.badge-none {
+  background: rgba(255, 255, 255, 0.05);
+  color: #64748b;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  font-size: 0.75rem;
+  padding: 0.2rem 0.5rem;
+  border-radius: 6px;
+}
+
+.id-input-group {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.id-input {
+  background: var(--input-bg);
+  border: 1px solid var(--card-border);
+  color: #fff;
+  padding: 0.35rem 0.55rem;
+  border-radius: 6px;
+  font-size: 0.82rem;
+  font-family: monospace;
+  width: 110px;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.id-input:focus {
+  border-color: var(--accent);
+}
+
+.id-input.null-val {
+  color: #f87171;
+  border-color: rgba(239, 68, 68, 0.3);
+}
+
+.ep-sub-input {
+  width: 60px;
+}
+
+.override-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.15rem 0.45rem;
+  border-radius: 5px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.override-pill.custom {
+  background: rgba(245, 158, 11, 0.15);
+  color: #fbbf24;
+  border: 1px solid rgba(245, 158, 11, 0.3);
+}
+
+.override-pill.match {
+  background: rgba(16, 185, 129, 0.15);
+  color: #34d399;
+  border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+.override-pill.using-official {
+  background: rgba(56, 189, 248, 0.08);
+  color: #7dd3fc;
+  border: 1px solid rgba(56, 189, 248, 0.2);
+}
+
+.override-pill.missing {
+  background: rgba(239, 68, 68, 0.15);
+  color: #f87171;
+  border: 1px solid rgba(239, 68, 68, 0.3);
+}
+
+.override-pill.skipped {
+  background: rgba(192, 132, 252, 0.15);
+  color: #c084fc;
+  border: 1px solid rgba(192, 132, 252, 0.3);
+}
+
+.row-actions {
+  display: flex;
+  gap: 0.35rem;
+  align-items: center;
+  justify-content: center;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.45rem 0.85rem;
+  border-radius: 8px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  border: none;
+  transition: all 0.2s;
+  text-decoration: none;
+}
+
+.btn-secondary {
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text);
+  border: 1px solid var(--card-border);
+}
+
+.btn-secondary:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.btn-anilist-skipped {
+  background: rgba(192, 132, 252, 0.15);
+  color: #c084fc;
+  border: 1px solid rgba(192, 132, 252, 0.3);
+}
+
+.btn-anilist-skipped:hover {
+  background: rgba(192, 132, 252, 0.25);
+  color: #e9d5ff;
+}
+
+.btn-sm {
+  padding: 0.3rem 0.6rem;
+  font-size: 0.75rem;
+}
+
+.btn-xs {
+  padding: 0.2rem 0.45rem;
+  font-size: 0.72rem;
+}

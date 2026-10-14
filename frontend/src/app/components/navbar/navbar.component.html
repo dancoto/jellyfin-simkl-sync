@@ -1,0 +1,29 @@
+<header class="app-header">
+  <div class="header-container">
+    <div class="brand">
+      <span class="logo">⚡</span>
+      <div>
+        <h1>Jellyfin Tracker Sync</h1>
+        <p class="subtitle">Scrobble anime & media to Simkl and AniList</p>
+      </div>
+    </div>
+
+    <nav class="nav-links">
+      <a
+        routerLink="/"
+        routerLinkActive="active"
+        [routerLinkActiveOptions]="{ exact: true }"
+        class="nav-link"
+      >
+        🔑 Users & Auth
+      </a>
+      <a
+        routerLink="/overrides"
+        routerLinkActive="active"
+        class="nav-link"
+      >
+        🎬 Anime Overrides
+      </a>
+    </nav>
+  </div>
+</header>

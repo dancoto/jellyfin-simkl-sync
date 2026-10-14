@@ -13,7 +13,6 @@ import {
   type AnimeCatalog,
   type CatalogSyncOptions,
 } from './catalog';
-import { renderOverridesHtml } from './page';
 import { retireRedundantOverrides } from './retire';
 
 export interface OfficialEpisodeInfo {
@@ -25,13 +24,6 @@ export type OfficialMappingsMap = Record<
   string,
   Record<string, Record<string, OfficialEpisodeInfo | null>>
 >;
-
-export const handleOverridesPage = (): Response => {
-  const html = renderOverridesHtml();
-  return new Response(html, {
-    headers: { 'Content-Type': 'text/html; charset=utf-8' },
-  });
-};
 
 export const handleGetOverrides = async (): Promise<Response> => {
   if (!defaultAnimeResolver.isInitialized()) {
