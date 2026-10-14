@@ -2,7 +2,7 @@
 
 A lightweight, high-performance media sync webhook server built in TypeScript with Bun. It listens directly to Jellyfin playback webhook events, automatically routes between Anime (using AniBridge cross-referencing to AniList with TVDB fallback) and standard TV Shows/Movies (using TVDB, TMDB, and IMDb IDs), and synchronizes watch history to your Simkl and AniList accounts.
 
-It supports multi-user setups, sends failure notifications to a `ntfy` server, and is designed with a clean, decoupled service architecture.
+It includes a modern **Angular Single-Page Application (SPA)** with Angular Material UI for visual tracker authentication, token health monitoring, and anime mapping overrides management.
 
 ---
 
@@ -29,9 +29,16 @@ flowchart TD
     simkl -->|On Failure / Not Found| ntfy[ntfy/ - Notification Service]
     anilist -->|On Failure| ntfy
     shared[shared/config.ts] -.->|Reads Config| main
+
+    subgraph Web_UI["Web Dashboard & Single Page Application"]
+        SPA["frontend/ (Angular + Material UI)"] -->|Compiles to| Public["public/ static files"]
+        Public --> Index["index.ts (Bun HTTP Server)"]
+        Index -->|REST API: /api/users, /api/overrides| Storage["config.toml & mapping-overrides.json"]
+    end
 ```
 
-- **[index.ts](./index.ts)**: The HTTP entry point using `Bun.serve`. Initializes the anime mapping indices in the background and dispatches `/webhook` requests asynchronously to prevent Jellyfin timeouts.
+- **[index.ts](./index.ts)**: HTTP entry point using `Bun.serve`. Dispatches `/webhook` requests asynchronously, serves the compiled Angular SPA from `./public`, and exposes REST API endpoints for user authentication and mapping overrides.
+- **[frontend/](./frontend)**: Single Page Application built with Angular 22, Angular Material, Signal Store, and modern styles. Provides the visual interface for tracker authorization and mapping overrides.
 - **[main.ts](./main.ts)**: The system orchestrator. Handles user credential verification, inspects library names, directs anime vs non-anime routing, coordinates watch history logging to Simkl and AniList, and intercepts failures to send push notifications.
 - **[anime/](./anime)**: The anime cross-referencing and mapping engine:
   - **Overrides** (`mapping-overrides.json`): User-configured overrides managed via the Web UI (`/overrides`) or JSON, evaluated with top priority.
@@ -50,10 +57,21 @@ flowchart TD
 - **Direct Jellyfin Webhook Ingestion**: Listens directly to Jellyfin's Generic Webhook destination.
 - **Dual Pipeline (Anime & Non-Anime)**: Automatically identifies Anime libraries (libraries containing `"Anime"` case-insensitively, e.g. `"Anime"`, `"Anime Movies"`) and routes them through the anime mapping engine (AniList primary with TVDB fallback), while routing standard TV Shows and Movies directly via TVDB, TMDB, and IMDb IDs.
 - **AniBridge Cross-Referencing**: Translates continuous TVDB season numberings into distinct AniList media entries and 1..N episode numbers automatically.
-- **Custom Overrides & Web UI**: Manage manual overrides at `http://localhost:3000/overrides` or directly in `mapping-overrides.json`.
+- **Modern Angular Web Application**:
+  - **Tracker Authentication Dashboard (`/auth`)**:
+    - Automatically discovers Jellyfin users via Jellyfin API or enter custom usernames.
+    - One-click OAuth 2.0 authorization flows for both **Simkl** and **AniList**.
+    - Live token health monitoring, expiration countdowns, manual token refresh, and disconnection.
+    - Automatic background token renewal (Simkl tokens refresh every 24 hours).
+  - **Mapping Overrides Management (`/overrides`)**:
+    - Searchable series catalog and filter by TVDB ID, title, or status (missing mappings, overridden, skipped).
+    - Expandable season panels with inline episode editing and live validation.
+    - Revert / Cancel button to discard pending edits and reset to saved state.
+    - Batch actions to apply AniList IDs across an entire season or mark unmapped specials as skipped.
+    - Bulk JSON import with validation and redundancy detection modal to clean up obsolete overrides.
 - **Automated Background Refresh**: Periodically checks and hot-swaps expired mapping caches in the background every 24 hours without server restarts, and supports manual on-demand reloads via `POST /mappings/refresh`.
 - **Strict Episode & Movie Scrobbling**: Only scrobbles media once playback finishes (reaching $\ge 80\%$ or marked played).
-- **Multi-User Friendly**: Supports multi-user households by mapping different Jellyfin usernames directly to their respective Simkl tokens.
+- **Multi-User Friendly**: Supports multi-user households by mapping different Jellyfin usernames directly to their respective Simkl and AniList tokens.
 - **Failure Alerts via ntfy**: Sends clickable link alerts to your configured `ntfy` topic if a regular episode is missing or unmapped in Simkl.
 
 ---
@@ -61,11 +79,13 @@ flowchart TD
 ## 🛠️ Prerequisites
 
 - **[Jellyfin](https://jellyfin.org/) 10.9.X+** with **Webhook plugin** (Generic destination configured to POST to `http://<bridge-host>:3000/webhook`)
-- **[Simkl](https://simkl.com/) account**
-  - **Client ID**: Register an application in the [Simkl Developer Console](https://api.simkl.org/api-reference/introduction).
-  - **User Access Tokens**: Each user mapped in the application requires a Simkl Bearer Token.
+- **[Simkl](https://simkl.com/) account**:
+  - Register an application in the [Simkl Developer Console](https://api.simkl.org/api-reference/introduction).
+- **[AniList](https://anilist.co/) account** _(optional)_:
+  - Register an application in [AniList Developer Settings](https://anilist.co/settings/developer).
 - **[ntfy](https://ntfy.sh/) server** _(optional, skipped if omitted from config)_
 - **[Bun Runtime](https://bun.sh/) 1.X** installed locally.
+- **[Node.js](https://nodejs.org/) v24+** (only required when building the Angular frontend from source locally; handled automatically inside Docker).
 
 ---
 
@@ -83,17 +103,26 @@ mise install
 Otherwise, install with Bun:
 
 ```bash
+# Install backend dependencies
 bun install
+
+# Install frontend dependencies
+cd frontend && bun install && cd ..
 ```
 
-### 2. Configuration & Simkl App Setup
+### 2. Configuration & Developer Setup
 
 1. **Create Simkl Developer App**:
    - Go to [simkl.com/settings/developer/new/](https://simkl.com/settings/developer/new/)
    - Set **Redirect URL** to: `http://<your-server-ip-or-host>:3000/auth/callback` (or `http://localhost:3000/auth/callback` for local testing).
    - Copy your generated **Client ID** and **Client Secret**.
 
-2. **Configure `config.toml`**:
+2. **Create AniList Developer App** _(optional)_:
+   - Go to [anilist.co/settings/developer](https://anilist.co/settings/developer)
+   - Set **Redirect URL** to: `http://<your-server-ip-or-host>:3000/auth/anilist/callback` (or `http://localhost:3000/auth/anilist/callback` for local testing).
+   - Copy your generated **Client ID** and **Client Secret**.
+
+3. **Configure `config.toml`**:
    Create a `config.toml` in the root of the project (or copy from `config.example.toml`):
 
 ```toml
@@ -115,6 +144,7 @@ client_secret = "YOUR_SIMKL_CLIENT_SECRET"
 # Optional AniList setup: Register at https://anilist.co/settings/developer
 client_id = "YOUR_ANILIST_CLIENT_ID"
 client_secret = "YOUR_ANILIST_CLIENT_SECRET"
+# Optional explicit callback override (defaults to http://<host>:3000/auth/anilist/callback)
 # redirect_uri = "http://YOUR_SERVER_IP:3000/auth/anilist/callback"
 
 [anilist.users]
@@ -124,6 +154,9 @@ client_secret = "YOUR_ANILIST_CLIENT_SECRET"
 url = "https://ntfy.sh"
 token = "YOUR_NTFY_AUTH_TOKEN"
 topic = "YOUR_NTFY_TOPIC"
+
+[logging]
+level = "info"
 ```
 
 ### 3. User Authentication Dashboard & Auto-Refresh
@@ -136,9 +169,9 @@ Open your browser to **`http://<your-server-ip>:3000/`** (or `/auth`):
 - **Automatic Background Token Refresh**: Simkl access tokens are refreshed automatically in the background every 24 hours. AniList 1-year tokens are validated live on the dashboard with expiration tracking.
 - **Health Checks & Manual Controls**: Displays live token validity and expiration countdowns for each user, with on-demand **↻ Refresh** and **Re-authorize** buttons. Legacy string tokens (`username = "token"`) remain fully supported.
 
-### 4. Mapping Overrides (Optional)
+### 4. Mapping Overrides
 
-You can manage overrides using the built-in Web Editor at **`http://<your-server-ip>:3000/overrides`**, or directly edit `mapping-overrides.json` in the root or configuration directory:
+Manage overrides visually using the built-in Web Editor at **`http://<your-server-ip>:3000/overrides`**, or directly edit `mapping-overrides.json` in your `/config` directory:
 
 ```json
 {
@@ -163,18 +196,17 @@ You can manage overrides using the built-in Web Editor at **`http://<your-server
 }
 ```
 
-### 5. Running Locally
-
-Start development server with live reload:
+### 5. Running Locally & Development
 
 ```bash
+# Build the Angular frontend assets into ./public
+bun run build:frontend
+
+# Start backend server with live reload
 bun run dev
-```
 
-Or run in production mode:
-
-```bash
-bun start
+# (Optional) Run Angular development server with HMR and API proxy:
+bun run dev:frontend
 ```
 
 ---
@@ -182,10 +214,10 @@ bun start
 ## 🧪 Testing, Linting & Formatting
 
 ```bash
-# Run unit tests
+# Run backend and frontend unit tests (169+ tests)
 bun run test
 
-# Lint code
+# Lint code and verify TypeScript compilation
 bun run lint
 
 # Format code
@@ -196,17 +228,46 @@ bun run format
 
 ## 🐳 Docker Setup
 
-Build and run with Docker:
+The project uses a lightweight multi-stage Docker build:
+1. **Stage 1 (Builder)**: Uses `node:24-alpine` (Active LTS) with Bun to compile the Angular frontend into static assets in `./public`.
+2. **Stage 2 (Runtime)**: Uses `oven/bun:1-alpine` to run the lightweight server without Node.js overhead.
+
+### Docker Run
 
 ```bash
+# 1. Build the Docker image
 docker build -t jellyfin-tracker-sync .
 
+# 2. Run the container
 docker run -d \
   --name jellyfin-tracker-sync \
+  --restart unless-stopped \
   -p 3000:3000 \
-  -v /path/to/config-dir:/config \
+  -v /path/to/config:/config \
   jellyfin-tracker-sync
 ```
+
+### Docker Compose
+
+Create a `docker-compose.yml` file:
+
+```yaml
+services:
+  jellyfin-tracker-sync:
+    image: jellyfin-tracker-sync
+    build: .
+    container_name: jellyfin-tracker-sync
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./config:/config
+    environment:
+      - TZ=UTC
+```
+
+> [!TIP]
+> The `/config` volume mount stores both `config.toml` and `mapping-overrides.json`. All token refreshes and UI edits persist across container restarts and updates.
 
 ---
 
