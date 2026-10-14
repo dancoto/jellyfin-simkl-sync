@@ -1,7 +1,7 @@
 import { Component, computed, inject, OnInit } from '@angular/core';
 import { ActivatedRoute } from '@angular/router';
 import { toSignal } from '@angular/core/rxjs-interop';
-import { MatCard, MatCardContent, MatCardHeader, MatCardTitle } from '@angular/material/card';
+import { MatCard, MatCardContent, MatCardHeader, MatCardSubtitle, MatCardTitle } from '@angular/material/card';
 import { MatButton } from '@angular/material/button';
 import { MatIcon } from '@angular/material/icon';
 import { MatFormField, MatLabel } from '@angular/material/form-field';
@@ -18,6 +18,7 @@ import { getAniListAuthUrl, getSimklAuthUrl } from '../../stores/auth.store.util
     MatCard,
     MatCardHeader,
     MatCardTitle,
+    MatCardSubtitle,
     MatCardContent,
     MatButton,
     MatIcon,

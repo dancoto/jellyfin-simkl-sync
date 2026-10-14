@@ -21,6 +21,7 @@ import {
   paginateShows,
   removeSeriesFromCatalog,
   resolveFilterSort,
+  revertShowOverride,
   skipUnmappedSeasonOverride,
   toggleCardId,
   toggleSkipEpisodeOverride,
@@ -29,6 +30,7 @@ import {
 export interface OverridesState {
   catalogData: Record<string, CatalogShow>;
   overridesData: RawTvdbOverrides;
+  savedOverridesData: RawTvdbOverrides;
   officialData: OfficialMappingsMap;
   dirtyShows: string[];
   openCards: string[];
@@ -55,6 +57,7 @@ export interface OverridesState {
 const initialOverridesState: OverridesState = {
   catalogData: {},
   overridesData: {},
+  savedOverridesData: {},
   officialData: {},
   dirtyShows: [],
   openCards: [],
@@ -91,13 +94,13 @@ export const OverridesStore = signalStore(
     );
 
     const filterCounts = computed(() =>
-      calculateFilterCounts(store.catalogData(), store.overridesData(), store.officialData())
+      calculateFilterCounts(store.catalogData(), store.savedOverridesData(), store.officialData())
     );
 
     const filteredShows = computed<[string, CatalogShow][]>(() =>
       filterAndSortShows(
         store.catalogData(),
-        store.overridesData(),
+        store.savedOverridesData(),
         store.officialData(),
         store.searchQuery(),
         store.currentFilter(),
@@ -145,9 +148,11 @@ export const OverridesStore = signalStore(
         switchMap(() =>
           api.getOverrides().pipe(
             tap((res) => {
+              const overrides = res.overrides || {};
               patchState(store, {
                 catalogData: res.catalog || {},
-                overridesData: res.overrides || {},
+                overridesData: overrides,
+                savedOverridesData: overrides,
                 officialData: res.official || {},
                 dirtyShows: [],
                 isLoading: false,
@@ -172,7 +177,12 @@ export const OverridesStore = signalStore(
           const show = store.overridesData()[tvdbId] || { title: '', seasons: {} };
           return api.saveShow(tvdbId, show).pipe(
             tap(() => {
+              const updatedSaved = {
+                ...store.savedOverridesData(),
+                [tvdbId]: store.overridesData()[tvdbId],
+              };
               patchState(store, {
+                savedOverridesData: updatedSaved,
                 dirtyShows: store.dirtyShows().filter((id) => id !== tvdbId),
               });
               const catShow = store.catalogData()[tvdbId];
@@ -196,7 +206,11 @@ export const OverridesStore = signalStore(
         switchMap(() =>
           api.saveOverrides(store.overridesData()).pipe(
             tap(() => {
-              patchState(store, { dirtyShows: [], isSaving: false });
+              patchState(store, {
+                savedOverridesData: store.overridesData(),
+                dirtyShows: [],
+                isSaving: false,
+              });
               showToast('All mapping overrides saved successfully!', 'success');
             }),
             catchError((err) => {
@@ -208,6 +222,32 @@ export const OverridesStore = signalStore(
         )
       )
     );
+
+    const cancelShow = (tvdbId: string) => {
+      const updatedOverrides = revertShowOverride(
+        store.overridesData(),
+        store.savedOverridesData(),
+        tvdbId
+      );
+      patchState(store, {
+        overridesData: updatedOverrides,
+        dirtyShows: store.dirtyShows().filter((id) => id !== tvdbId),
+      });
+      const catShow = store.catalogData()[tvdbId];
+      const savedShow = store.savedOverridesData()[tvdbId];
+      showToast(
+        `Cancelled changes for "${catShow?.title || savedShow?.title || tvdbId}"`,
+        'info'
+      );
+    };
+
+    const cancelAllChanges = () => {
+      patchState(store, {
+        overridesData: JSON.parse(JSON.stringify(store.savedOverridesData())),
+        dirtyShows: [],
+      });
+      showToast('Cancelled all unsaved changes', 'info');
+    };
 
     const syncSeries = rxMethod<string>(
       pipe(
@@ -228,9 +268,13 @@ export const OverridesStore = signalStore(
                   tvdbId
                 );
 
+                const updatedSaved = { ...store.savedOverridesData() };
+                delete updatedSaved[tvdbId];
+
                 patchState(store, {
                   catalogData: catalog,
                   overridesData: overrides,
+                  savedOverridesData: updatedSaved,
                   officialData: official,
                   dirtyShows: store.dirtyShows().filter((id) => id !== tvdbId),
                 });
@@ -455,6 +499,8 @@ export const OverridesStore = signalStore(
       loadData,
       saveShow,
       saveAllChanges,
+      cancelShow,
+      cancelAllChanges,
       syncSeries,
       syncLibrary,
       updateEpisode,

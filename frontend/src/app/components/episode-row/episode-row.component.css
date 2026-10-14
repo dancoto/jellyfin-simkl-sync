@@ -163,19 +163,19 @@ td {
   justify-content: center;
 }
 
-.action-btn {
-  height: 26px !important;
-  line-height: 26px !important;
-  padding: 0 0.5rem !important;
-  font-size: 0.72rem !important;
-  font-weight: 500 !important;
-  border-radius: 4px !important;
-  min-width: 0 !important;
-  letter-spacing: normal !important;
+button.action-btn {
+  height: 26px;
+  line-height: 26px;
+  padding: 0 0.5rem;
+  font-size: 0.72rem;
+  font-weight: 500;
+  border-radius: 4px;
+  min-width: 0;
+  letter-spacing: normal;
 }
 
-.action-btn.btn-anilist-skipped {
-  color: #c084fc !important;
-  border-color: rgba(192, 132, 252, 0.4) !important;
-  background: rgba(192, 132, 252, 0.1) !important;
+button.action-btn.btn-anilist-skipped {
+  color: #c084fc;
+  border-color: rgba(192, 132, 252, 0.4);
+  background: rgba(192, 132, 252, 0.1);
 }

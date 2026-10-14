@@ -51,6 +51,7 @@ export class SeriesCardComponent {
   toggleOpen = output<void>();
   syncSeries = output<string>();
   saveSeries = output<string>();
+  cancelSeries = output<string>();
   updateEpisode = output<{
     seasonNum: string;
     epNum: string;
@@ -174,5 +175,10 @@ export class SeriesCardComponent {
       this.applyBatchSeason.emit({ seasonNum, anilistId: num });
       this.batchInputs.update(current => ({ ...current, [seasonNum]: '' }));
     }
+  }
+
+  handleCancel() {
+    this.batchInputs.set({});
+    this.cancelSeries.emit(this.tvdbId());
   }
 }

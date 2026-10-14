@@ -3,42 +3,42 @@
   margin-bottom: 0.75rem;
 }
 
-.series-card {
-  background: var(--card-bg) !important;
-  border: 1px solid var(--card-border) !important;
-  border-radius: 10px !important;
+mat-expansion-panel.series-card {
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: 10px;
   overflow: hidden;
-  box-shadow: none !important;
-  margin: 0 !important;
+  box-shadow: none;
+  margin: 0;
   transition: border-color 0.2s;
 }
 
-.series-card.mat-expansion-panel-spacing {
-  margin: 0 !important;
+mat-expansion-panel.series-card.mat-expansion-panel-spacing {
+  margin: 0;
 }
 
 :host ::ng-deep .series-card .mat-expansion-panel-body {
-  padding: 0 !important;
+  padding: 0;
 }
 
-.series-card.modified {
-  border-color: var(--warning) !important;
+mat-expansion-panel.series-card.modified {
+  border-color: var(--warning);
 }
 
-.series-header {
-  padding: 0.85rem 1.25rem !important;
-  min-height: 64px !important;
-  background: rgba(0, 0, 0, 0.15) !important;
+mat-expansion-panel-header.series-header {
+  padding: 0.85rem 1.25rem;
+  min-height: 64px;
+  background: rgba(0, 0, 0, 0.15);
 }
 
-.series-title-group {
-  display: flex !important;
-  flex-direction: column !important;
-  align-items: flex-start !important;
-  justify-content: center !important;
-  text-align: left !important;
-  gap: 0.4rem !important;
-  margin-right: 1rem !important;
+mat-panel-title.series-title-group {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  text-align: left;
+  gap: 0.4rem;
+  margin-right: 1rem;
 }
 
 .series-title {
@@ -137,28 +137,23 @@
   margin-right: 0.5rem;
 }
 
-.header-btn {
-  height: 32px !important;
-  line-height: 32px !important;
-  padding: 0 0.75rem !important;
-  font-size: 0.78rem !important;
-  font-weight: 500 !important;
-  border-radius: 6px !important;
-  display: inline-flex !important;
-  align-items: center !important;
-  gap: 0.35rem !important;
-}
-
-.header-btn.btn-highlight {
-  background: var(--warning) !important;
-  color: #000 !important;
+button.header-btn {
+  height: 32px;
+  line-height: 32px;
+  padding: 0 0.75rem;
+  font-size: 0.78rem;
+  font-weight: 500;
+  border-radius: 6px;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
 }
 
 .btn-icon {
-  font-size: 16px !important;
-  width: 16px !important;
-  height: 16px !important;
-  line-height: 16px !important;
+  font-size: 16px;
+  width: 16px;
+  height: 16px;
+  line-height: 16px;
 }
 
 .spinner-inline {
@@ -167,9 +162,11 @@
 }
 
 .series-body {
-  padding: 1.25rem 0;
+  padding: 1.25rem;
   background: #0e1422;
   contain: paint;
+  box-sizing: border-box;
+  overflow-x: auto;
 }
 
 .season-section {
@@ -255,14 +252,14 @@
   border-color: var(--accent);
 }
 
-.batch-btn {
-  height: 28px !important;
-  line-height: 28px !important;
-  padding: 0 0.65rem !important;
-  font-size: 0.75rem !important;
-  border-radius: 4px !important;
-  border-color: var(--card-border) !important;
-  color: var(--text) !important;
+button.batch-btn {
+  height: 28px;
+  line-height: 28px;
+  padding: 0 0.65rem;
+  font-size: 0.75rem;
+  border-radius: 4px;
+  border-color: var(--card-border);
+  color: var(--text);
 }
 
 .ep-table {

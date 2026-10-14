@@ -22,6 +22,7 @@ import {
   paginateShows,
   removeSeriesFromCatalog,
   resolveFilterSort,
+  revertShowOverride,
   skipUnmappedSeasonOverride,
   toggleCardId,
   toggleSkipEpisodeOverride,
@@ -193,6 +194,55 @@ describe('OverridesStore Utils', () => {
       expect(results[0][0]).toBe('67890');
     });
 
+    it('sorts shows by missing-desc stably using saved baseline overrides', () => {
+      // Show 67890 has 1 missing episode; Show 12345 has 0 missing
+      const initial = filterAndSortShows(
+        sampleCatalog,
+        sampleOverrides,
+        sampleOfficial,
+        '',
+        'all',
+        'missing-desc'
+      );
+      expect(initial[0][0]).toBe('67890'); // 67890 first because it has missing
+      expect(initial[1][0]).toBe('12345');
+
+      // If user edits 67890 in-progress to map it (0 missing), but we pass the saved baseline,
+      // it remains in its sorted position until saved:
+      const inProgressEdits = applyEpisodeUpdate(
+        sampleOverrides,
+        sampleCatalog,
+        '67890',
+        '1',
+        '1',
+        'anilistId',
+        '99999'
+      );
+      // Passing saved baseline (sampleOverrides) keeps order stable:
+      const stableResult = filterAndSortShows(
+        sampleCatalog,
+        sampleOverrides,
+        sampleOfficial,
+        '',
+        'all',
+        'missing-desc'
+      );
+      expect(stableResult[0][0]).toBe('67890');
+
+      // Once committed/saved, passing the updated overrides re-sorts:
+      const reSortedResult = filterAndSortShows(
+        sampleCatalog,
+        inProgressEdits,
+        sampleOfficial,
+        '',
+        'all',
+        'missing-desc'
+      );
+      // Both now have 0 missing; ties break by title ("Anime Alpha" < "Anime Beta")
+      expect(reSortedResult[0][0]).toBe('12345');
+      expect(reSortedResult[1][0]).toBe('67890');
+    });
+
     it('paginates show arrays properly', () => {
       const items: [string, CatalogShow][] = [
         ['1', sampleCatalog['12345']],
@@ -315,6 +365,40 @@ describe('OverridesStore Utils', () => {
       expect(resolveFilterSort('unmapped', 'title-asc')).toBe('missing-desc');
       expect(resolveFilterSort('overrides', 'title-asc')).toBe('overridden-desc');
       expect(resolveFilterSort('all', 'title-asc')).toBe('title-asc');
+    });
+
+    it('revertShowOverride restores saved show state and removes newly added overrides', () => {
+      // 1. Revert modified show back to saved baseline
+      const modified = applyEpisodeUpdate(
+        sampleOverrides,
+        sampleCatalog,
+        '12345',
+        '1',
+        '2',
+        'anilistId',
+        '11111'
+      );
+      expect(modified['12345'].seasons?.['1']?.episodes?.['2']?.anilistId).toBe(11111);
+
+      const reverted = revertShowOverride(modified, sampleOverrides, '12345');
+      // Should revert to original 99999
+      expect(reverted['12345'].seasons?.['1']?.episodes?.['2']?.anilistId).toBe(99999);
+
+      // 2. Revert show that originally had no overrides in saved baseline
+      const addedShowOverrides = applyEpisodeUpdate(
+        sampleOverrides,
+        sampleCatalog,
+        '99999',
+        '1',
+        '1',
+        'anilistId',
+        '88888'
+      );
+      expect(addedShowOverrides['99999']).toBeDefined();
+
+      const revertedAdded = revertShowOverride(addedShowOverrides, sampleOverrides, '99999');
+      // Should be removed completely since 99999 was not in sampleOverrides
+      expect(revertedAdded['99999']).toBeUndefined();
     });
   });
 });

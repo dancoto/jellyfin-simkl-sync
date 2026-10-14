@@ -9,6 +9,8 @@ import { RetireRedundantModalComponent } from '../../components/modals/retire-re
 
 import { MatAccordion } from '@angular/material/expansion';
 import { MatButton } from '@angular/material/button';
+import { MatIcon } from '@angular/material/icon';
+import { MatTooltip } from '@angular/material/tooltip';
 import { MatProgressSpinner } from '@angular/material/progress-spinner';
 
 @Component({
@@ -22,6 +24,8 @@ import { MatProgressSpinner } from '@angular/material/progress-spinner';
     RetireRedundantModalComponent,
     MatAccordion,
     MatButton,
+    MatIcon,
+    MatTooltip,
     MatProgressSpinner,
   ],
   templateUrl: './overrides.component.html',

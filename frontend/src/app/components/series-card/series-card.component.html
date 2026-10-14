@@ -78,13 +78,26 @@
       <button
         mat-flat-button
         class="header-btn"
-        [class.btn-highlight]="isModified()"
+        [color]="isModified() ? 'primary' : undefined"
         matTooltip="Save overrides for this series"
         (click)="saveSeries.emit(tvdbId())"
       >
         <mat-icon class="btn-icon">save</mat-icon>
         Save
       </button>
+
+      @if (isModified()) {
+        <button
+          mat-stroked-button
+          color="warn"
+          class="header-btn"
+          matTooltip="Cancel unsaved changes and reset this series"
+          (click)="handleCancel()"
+        >
+          <mat-icon class="btn-icon">undo</mat-icon>
+          Cancel
+        </button>
+      }
     </div>
   </mat-expansion-panel-header>
 

@@ -72,6 +72,7 @@
               (toggleOpen)="store.toggleCard(entry[0])"
               (syncSeries)="store.syncSeries($event)"
               (saveSeries)="store.saveShow($event)"
+              (cancelSeries)="store.cancelShow($event)"
               (updateEpisode)="store.updateEpisode(entry[0], $event)"
               (useOfficialEpisode)="store.useOfficialEpisode(entry[0], $event)"
               (toggleSkipEpisode)="store.toggleSkipEpisode(entry[0], $event)"
@@ -100,14 +101,31 @@
       <span class="save-banner-text">
         ⚡ {{ store.dirtyShows().length }} show(s) modified
       </span>
-      <button mat-flat-button class="save-btn" [disabled]="store.isSaving()" (click)="store.saveAllChanges()">
-        @if (store.isSaving()) {
-          <mat-progress-spinner diameter="16" mode="indeterminate" class="spinner-inline"></mat-progress-spinner>
-          Saving Changes...
-        } @else {
-          💾 Save All Changes
-        }
-      </button>
+      <div class="save-banner-actions">
+        <button
+          mat-stroked-button
+          color="warn"
+          [disabled]="store.isSaving()"
+          matTooltip="Cancel all unsaved changes and reset library to saved state"
+          (click)="store.cancelAllChanges()"
+        >
+          <mat-icon class="btn-icon">undo</mat-icon>
+          Cancel All
+        </button>
+        <button
+          mat-flat-button
+          color="primary"
+          [disabled]="store.isSaving()"
+          (click)="store.saveAllChanges()"
+        >
+          @if (store.isSaving()) {
+            <mat-progress-spinner diameter="16" mode="indeterminate" class="spinner-inline"></mat-progress-spinner>
+          } @else {
+            <mat-icon class="btn-icon">save</mat-icon>
+          }
+          {{ store.isSaving() ? 'Saving Changes...' : 'Save All Changes' }}
+        </button>
+      </div>
     </div>
   }
 

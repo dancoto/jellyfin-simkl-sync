@@ -658,3 +658,22 @@ export function resolveFilterSort(currentFilter: string, currentSort: string): s
   if (currentFilter === 'overrides') return 'overridden-desc';
   return currentSort;
 }
+
+/**
+ * Pure function to revert a show's overrides back to its saved baseline.
+ */
+export function revertShowOverride(
+  currentOverrides: RawTvdbOverrides,
+  savedOverrides: RawTvdbOverrides,
+  tvdbId: string
+): RawTvdbOverrides {
+  const updated = { ...currentOverrides };
+  const savedShow = savedOverrides[tvdbId];
+  if (savedShow) {
+    updated[tvdbId] = JSON.parse(JSON.stringify(savedShow));
+  } else {
+    delete updated[tvdbId];
+  }
+  return updated;
+}
+
