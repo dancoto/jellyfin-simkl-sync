@@ -1,18 +1,37 @@
 import { describe, expect, test } from 'bun:test';
-import { isAnimeLibrary, normalizeJellyfinWebhook } from './normalizer';
+import { isAnimeLibrary, isExcludedLibrary, normalizeJellyfinWebhook } from './normalizer';
 
 describe('Jellyfin Webhook Normalizer', () => {
-  test('isAnimeLibrary helper should identify anime libraries case-insensitively', () => {
+  test('isAnimeLibrary helper should identify anime libraries case-insensitively while excluding Other Anime', () => {
     expect(isAnimeLibrary('Anime')).toBe(true);
     expect(isAnimeLibrary('Anime Shows')).toBe(true);
     expect(isAnimeLibrary('ANIME MOVIES')).toBe(true);
     expect(isAnimeLibrary('my-anime-collection')).toBe(true);
+
+    // Other Anime and Other Anime Movies must be excluded
+    expect(isAnimeLibrary('Other Anime')).toBe(false);
+    expect(isAnimeLibrary('Other Anime Movies')).toBe(false);
+    expect(isAnimeLibrary('other anime')).toBe(false);
+    expect(isAnimeLibrary('OTHER ANIME MOVIES')).toBe(false);
 
     expect(isAnimeLibrary('TV Shows')).toBe(false);
     expect(isAnimeLibrary('Movies')).toBe(false);
     expect(isAnimeLibrary('Documentaries')).toBe(false);
     expect(isAnimeLibrary(undefined)).toBe(false);
     expect(isAnimeLibrary(null)).toBe(false);
+  });
+
+  test('isExcludedLibrary helper should identify excluded libraries case-insensitively', () => {
+    expect(isExcludedLibrary('Other Anime')).toBe(true);
+    expect(isExcludedLibrary('Other Anime Movies')).toBe(true);
+    expect(isExcludedLibrary('other anime')).toBe(true);
+    expect(isExcludedLibrary('OTHER ANIME MOVIES')).toBe(true);
+
+    expect(isExcludedLibrary('Anime')).toBe(false);
+    expect(isExcludedLibrary('Anime Movies')).toBe(false);
+    expect(isExcludedLibrary('TV Shows')).toBe(false);
+    expect(isExcludedLibrary(undefined)).toBe(false);
+    expect(isExcludedLibrary(null)).toBe(false);
   });
 
   test('should normalize Episode webhook with flat Provider_ keys and LibraryName', () => {
@@ -122,5 +141,49 @@ describe('Jellyfin Webhook Normalizer', () => {
     const event = normalizeJellyfinWebhook(raw);
     expect(event.episodeNumber).toBe(1);
     expect(event.episodeNumberEnd).toBe(2);
+  });
+
+  test('should normalize Series itemType and copy ProviderIds to seriesProviderIds', () => {
+    const raw = {
+      NotificationType: 'ItemAdded',
+      ItemType: 'Series',
+      ItemId: 'jf-series-guid',
+      Name: 'Chainsaw Man',
+      LibraryName: 'Anime',
+      ProviderIds: {
+        Tvdb: '393199',
+        Tmdb: '114410',
+      },
+    };
+
+    const event = normalizeJellyfinWebhook(raw);
+    expect(event.itemType).toBe('Series');
+    expect(event.itemId).toBe('jf-series-guid');
+    expect(event.name).toBe('Chainsaw Man');
+    expect(event.libraryName).toBe('Anime');
+    expect(event.providerIds.tvdb).toBe('393199');
+    expect(event.seriesProviderIds.tvdb).toBe('393199');
+    expect(event.seriesProviderIds.tmdb).toBe('114410');
+  });
+
+  test('should normalize Season itemType and retain series info', () => {
+    const raw = {
+      NotificationType: 'ItemAdded',
+      ItemType: 'Season',
+      ItemId: 'jf-season-guid',
+      SeriesId: 'jf-series-guid',
+      Name: 'Season 1',
+      SeriesName: 'Chainsaw Man',
+      LibraryName: 'Anime',
+      ProviderIds: { Tvdb: '2229470' },
+      Series_Provider_tvdb: '393199',
+    };
+
+    const event = normalizeJellyfinWebhook(raw);
+    expect(event.itemType).toBe('Season');
+    expect(event.itemId).toBe('jf-season-guid');
+    expect(event.seriesId).toBe('jf-series-guid');
+    expect(event.providerIds.tvdb).toBe('2229470');
+    expect(event.seriesProviderIds.tvdb).toBe('393199');
   });
 });

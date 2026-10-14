@@ -38,7 +38,7 @@ describe('Simkl Scrobbler', () => {
               statuses: [
                 {
                   request: {
-                    ids: { anidb: '12345', tvdb: '81189' },
+                    ids: { anilist: 12345, tvdb: '81189' },
                     type: 'movie',
                   },
                 },
@@ -64,9 +64,9 @@ describe('Simkl Scrobbler', () => {
   describe('scrobbleAnimeEpisode', () => {
     test('should skip scrobbling if not completed', async () => {
       const animeEpisode = {
-        animeId: '12345',
         episodeNumber: 1,
         isSpecial: false,
+        anilist: { mediaId: 12345, episodeNumber: 1 },
       };
 
       const event: NormalizedPlaybackEvent = {
@@ -90,9 +90,9 @@ describe('Simkl Scrobbler', () => {
 
     test('should scrobble if completed', async () => {
       const animeEpisode = {
-        animeId: '12345',
         episodeNumber: 1,
         isSpecial: false,
+        anilist: { mediaId: 12345, episodeNumber: 1 },
       };
 
       const event: NormalizedPlaybackEvent = {
@@ -120,7 +120,10 @@ describe('Simkl Scrobbler', () => {
 
   describe('scrobbleAnimeMovie', () => {
     test('should scrobble movie with watching status if incomplete', async () => {
-      const animeMovie = { animeId: '54321', episodeNumber: 1 };
+      const animeMovie = {
+        episodeNumber: 1,
+        anilist: { mediaId: 54321, episodeNumber: 1 },
+      };
       const event: NormalizedPlaybackEvent = {
         notificationType: 'PlaybackStart',
         username: 'test-user',
@@ -144,7 +147,10 @@ describe('Simkl Scrobbler', () => {
     });
 
     test('should scrobble movie with completed status if completed', async () => {
-      const animeMovie = { animeId: '54321', episodeNumber: 1 };
+      const animeMovie = {
+        episodeNumber: 1,
+        anilist: { mediaId: 54321, episodeNumber: 1 },
+      };
       const event: NormalizedPlaybackEvent = {
         notificationType: 'PlaybackStop',
         username: 'test-user',

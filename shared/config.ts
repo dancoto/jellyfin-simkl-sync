@@ -18,7 +18,16 @@ export interface AniListConfig {
 }
 
 export type Config = {
-  jellyfin?: { url: string; token: string };
+  jellyfin?: {
+    url: string;
+    token: string;
+    excluded_libraries?: string[];
+    anime_libraries?: string[];
+    continuous_sync?: {
+      enabled?: boolean;
+      debounce_ms?: number;
+    };
+  };
   simkl: {
     app_name: string;
     client_id: string;

@@ -1,7 +1,37 @@
+import { appConfig } from '../shared/config';
 import type { NormalizedPlaybackEvent, RawJellyfinPayload } from './models';
 
-export const isAnimeLibrary = (libraryName?: string | null): boolean => {
+export const DEFAULT_EXCLUDED_LIBRARIES = ['Other Anime', 'Other Anime Movies'];
+export const DEFAULT_ANIME_LIBRARIES = ['Anime', 'Anime Movies'];
+
+export const isExcludedLibrary = (
+  libraryName?: string | null,
+  excludedList?: string[],
+): boolean => {
   if (!libraryName) return false;
+  const list =
+    excludedList ?? appConfig?.jellyfin?.excluded_libraries ?? DEFAULT_EXCLUDED_LIBRARIES;
+  const normalized = libraryName.toLowerCase().trim();
+  return list.some((item) => normalized === item.toLowerCase().trim());
+};
+
+export const isAnimeLibrary = (
+  libraryName?: string | null,
+  options?: { animeLibraries?: string[]; excludedLibraries?: string[] },
+): boolean => {
+  if (!libraryName) return false;
+  if (isExcludedLibrary(libraryName, options?.excludedLibraries)) return false;
+
+  const animeList = options?.animeLibraries ?? appConfig?.jellyfin?.anime_libraries;
+
+  if (animeList && animeList.length > 0) {
+    const normalized = libraryName.toLowerCase().trim();
+    return animeList.some(
+      (item) =>
+        normalized === item.toLowerCase().trim() || normalized.includes(item.toLowerCase().trim()),
+    );
+  }
+
   return libraryName.toLowerCase().includes('anime');
 };
 
@@ -9,12 +39,16 @@ export const normalizeJellyfinWebhook = (payload: RawJellyfinPayload): Normalize
   const notificationType = payload.NotificationType ?? 'PlaybackStop';
   const username = payload.NotificationUsername ?? payload.Username ?? payload.User?.Name ?? '';
 
-  let itemType: 'Episode' | 'Movie' | 'Other' = 'Other';
+  let itemType: 'Episode' | 'Movie' | 'Series' | 'Season' | 'Other' = 'Other';
   const rawItemType = (payload.ItemType ?? '').toLowerCase();
   if (rawItemType === 'episode') {
     itemType = 'Episode';
   } else if (rawItemType === 'movie') {
     itemType = 'Movie';
+  } else if (rawItemType === 'series') {
+    itemType = 'Series';
+  } else if (rawItemType === 'season') {
+    itemType = 'Season';
   }
 
   const itemId = payload.ItemId;
@@ -116,12 +150,6 @@ export const normalizeJellyfinWebhook = (payload: RawJellyfinPayload): Normalize
     ) {
       seriesProviderIds['tmdb'] = strVal;
     } else if (
-      lowerKey === 'series_anidb' ||
-      lowerKey === 'seriesanidb' ||
-      lowerKey === 'seriesanidbid'
-    ) {
-      seriesProviderIds['anidb'] = strVal;
-    } else if (
       lowerKey === 'series_imdb' ||
       lowerKey === 'seriesimdb' ||
       lowerKey === 'seriesimdbid'
@@ -137,10 +165,16 @@ export const normalizeJellyfinWebhook = (payload: RawJellyfinPayload): Normalize
       providerIds['tvdb'] = strVal;
     } else if (lowerKey === 'tmdb' || lowerKey === 'tmdbid') {
       providerIds['tmdb'] = strVal;
-    } else if (lowerKey === 'anidb' || lowerKey === 'anidbid') {
-      providerIds['anidb'] = strVal;
     } else if (lowerKey === 'imdb' || lowerKey === 'imdbid') {
       providerIds['imdb'] = strVal;
+    }
+  }
+
+  if (itemType === 'Series') {
+    for (const [k, v] of Object.entries(providerIds)) {
+      if (v && !seriesProviderIds[k]) {
+        seriesProviderIds[k] = v;
+      }
     }
   }
 

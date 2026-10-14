@@ -1,4 +1,3 @@
-import type { AnimeEpisodeResult, AnimeMovieResult } from '../anime/models';
 import type { NormalizedPlaybackEvent } from '../jellyfin/models';
 import { appConfig } from '../shared/config';
 import {
@@ -12,7 +11,12 @@ import {
 export type { ScrobbleResult };
 
 export const scrobbleAnimeEpisode = async (
-  animeEpisode: Pick<AnimeEpisodeResult, 'animeId' | 'episodeNumber' | 'isSpecial'>,
+  animeEpisode: {
+    episodeNumber: number;
+    isSpecial?: boolean;
+    anilist?: { mediaId: number; episodeNumber: number };
+    tvdbId?: string;
+  },
   event: NormalizedPlaybackEvent,
   userToken: string,
 ): Promise<ScrobbleResult> => {
@@ -20,14 +24,23 @@ export const scrobbleAnimeEpisode = async (
     return { success: true, skipped: true };
   }
 
+  const ids: Record<string, any> = {};
+  if (animeEpisode.anilist) {
+    ids.anilist = animeEpisode.anilist.mediaId;
+  } else if (animeEpisode.tvdbId) {
+    ids.tvdb = animeEpisode.tvdbId;
+  }
+
+  const epNumber = animeEpisode.anilist?.episodeNumber ?? animeEpisode.episodeNumber;
+
   const episodePayload: TVPayload = {
     shows: [
       {
-        ids: { anidb: animeEpisode.animeId },
+        ids,
         seasons: [
           {
             number: animeEpisode.isSpecial ? 0 : 1,
-            episodes: [{ number: animeEpisode.episodeNumber }],
+            episodes: [{ number: epNumber }],
           },
         ],
       },
@@ -46,12 +59,17 @@ export const scrobbleAnimeEpisode = async (
   return {
     success: false,
     reason: response.reason,
-    anidbId: animeEpisode.animeId,
+    id: String(animeEpisode.anilist?.mediaId ?? animeEpisode.tvdbId ?? epNumber),
   };
 };
 
 export const scrobbleAnimeMovie = async (
-  animeMovie: Pick<AnimeMovieResult, 'animeId' | 'episodeNumber'>,
+  animeMovie: {
+    episodeNumber: number;
+    anilist?: { mediaId: number; episodeNumber: number };
+    tmdbId?: string;
+    tvdbId?: string;
+  },
   event: NormalizedPlaybackEvent,
   userToken: string,
 ): Promise<ScrobbleResult> => {
@@ -59,10 +77,19 @@ export const scrobbleAnimeMovie = async (
     ? WATCH_STATUS.COMPLETED
     : WATCH_STATUS.WATCHING;
 
+  const ids: Record<string, any> = {};
+  if (animeMovie.anilist) {
+    ids.anilist = animeMovie.anilist.mediaId;
+  } else if (animeMovie.tmdbId) {
+    ids.tmdb = animeMovie.tmdbId;
+  } else if (animeMovie.tvdbId) {
+    ids.tvdb = animeMovie.tvdbId;
+  }
+
   const moviePayload: MoviePayload = {
     movies: [
       {
-        ids: { anidb: animeMovie.animeId },
+        ids,
         status: watchStatus,
       },
     ],
@@ -80,7 +107,7 @@ export const scrobbleAnimeMovie = async (
   return {
     success: false,
     reason: response.reason,
-    anidbId: animeMovie.animeId,
+    id: String(animeMovie.anilist?.mediaId ?? animeMovie.tmdbId ?? event.name),
   };
 };
 
@@ -127,7 +154,7 @@ export const scrobbleStandardEpisode = async (
   return {
     success: false,
     reason: response.reason,
-    anidbId: fallbackId,
+    id: fallbackId,
   };
 };
 
@@ -168,7 +195,7 @@ export const scrobbleStandardMovie = async (
   return {
     success: false,
     reason: response.reason,
-    anidbId: fallbackId,
+    id: fallbackId,
   };
 };
 
@@ -218,7 +245,7 @@ const sendPayload = async (
 
     const statusObj = data.added.statuses[0]?.request;
     const id =
-      (statusObj?.ids.anidb as string) ??
+      (statusObj?.ids.anilist ? String(statusObj.ids.anilist) : undefined) ??
       (statusObj?.ids.tvdb ? String(statusObj.ids.tvdb) : undefined) ??
       (statusObj?.ids.tmdb ? String(statusObj.ids.tmdb) : undefined) ??
       (statusObj?.ids.imdb as string) ??

@@ -18,7 +18,6 @@ interface SimklAnimeItem {
       simkl?: number;
       slug?: string;
       mal?: string | number;
-      anidb?: string | number;
       anilist?: string | number;
       tmdb?: string | number;
       tvdb?: string | number;
@@ -31,7 +30,6 @@ interface SimklAnimeItem {
       simkl?: number;
       slug?: string;
       mal?: string | number;
-      anidb?: string | number;
       anilist?: string | number;
       tmdb?: string | number;
     };

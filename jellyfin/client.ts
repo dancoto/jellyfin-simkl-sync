@@ -5,14 +5,19 @@ export class JellyfinClient {
   private seriesCache = new Map<string, Record<string, string>>();
   private libraryCache = new Map<string, string>();
 
-  public async getSeriesProviderIds(seriesId?: string): Promise<Record<string, string> | null> {
+  public async getSeriesProviderIds(
+    seriesId?: string,
+    options?: { forceRefresh?: boolean },
+  ): Promise<Record<string, string> | null> {
     if (!seriesId) {
       return null;
     }
 
-    const cached = this.seriesCache.get(seriesId);
-    if (cached) {
-      return cached;
+    if (!options?.forceRefresh) {
+      const cached = this.seriesCache.get(seriesId);
+      if (cached) {
+        return cached;
+      }
     }
 
     const config = appConfig.jellyfin;

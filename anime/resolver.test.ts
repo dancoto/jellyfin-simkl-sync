@@ -3,6 +3,7 @@ import { AniBridgeIndex } from './anibridge';
 import { AnimeListIndex } from './animelist';
 import { pair, readAllRanges, readRange, readTarget } from './range';
 import { AnimeResolver } from './resolver';
+import { TvdbOverridesIndex } from './tvdb-overrides';
 
 describe('Anime Range Parser', () => {
   test('should parse single episodes and ranges', () => {
@@ -137,7 +138,6 @@ describe('AniBridge Index & Resolver', () => {
 
     const result = resolver.resolveEpisode({ tvdbId: '439265' }, 1, 5);
     expect(result).toEqual({
-      animeId: '17617',
       episodeNumber: 5,
       isSpecial: false,
       kind: 'regular',
@@ -150,40 +150,36 @@ describe('AniBridge Index & Resolver', () => {
     const resolver = new AnimeResolver();
     resolver.setIndices(aniBridge);
 
-    // S1 Ep 10 -> AniDB 9541 Ep 10
+    // S1 Ep 10
     const s1 = resolver.resolveEpisode({ tvdbId: '267440' }, 1, 10);
     expect(s1).toEqual({
-      animeId: '9541',
       episodeNumber: 10,
       isSpecial: false,
       kind: 'regular',
       source: 'anibridge',
     });
 
-    // S2 Ep 3 -> AniDB 10944 Ep 3
+    // S2 Ep 3
     const s2 = resolver.resolveEpisode({ tvdbId: '267440' }, 2, 3);
     expect(s2).toEqual({
-      animeId: '10944',
       episodeNumber: 3,
       isSpecial: false,
       kind: 'regular',
       source: 'anibridge',
     });
 
-    // S3 Ep 5 (Part 1) -> AniDB 13507 Ep 5
+    // S3 Ep 5 (Part 1)
     const s3p1 = resolver.resolveEpisode({ tvdbId: '267440' }, 3, 5);
     expect(s3p1).toEqual({
-      animeId: '13507',
       episodeNumber: 5,
       isSpecial: false,
       kind: 'regular',
       source: 'anibridge',
     });
 
-    // S3 Ep 15 (Part 2) -> AniDB 14226 Ep 3 (15 - 13 + 1 = 3)
+    // S3 Ep 15 (Part 2)
     const s3p2 = resolver.resolveEpisode({ tvdbId: '267440' }, 3, 15);
     expect(s3p2).toEqual({
-      animeId: '14226',
       episodeNumber: 3,
       isSpecial: false,
       kind: 'regular',
@@ -198,7 +194,6 @@ describe('AniBridge Index & Resolver', () => {
 
     const special = resolver.resolveEpisode({ tvdbId: '267440' }, 0, 2);
     expect(special).toEqual({
-      animeId: '9541',
       episodeNumber: 2,
       isSpecial: true,
       kind: 'special',
@@ -213,7 +208,6 @@ describe('AniBridge Index & Resolver', () => {
 
     const ova = resolver.resolveEpisode({ tvdbId: '87491' }, 0, 37);
     expect(ova).toEqual({
-      animeId: '11257',
       episodeNumber: 1,
       isSpecial: false,
       kind: 'regular',
@@ -228,17 +222,38 @@ describe('AniBridge Index & Resolver', () => {
 
     const tmdbMovie = resolver.resolveMovie({ tmdbId: '128' });
     expect(tmdbMovie).toEqual({
-      animeId: '7',
       episodeNumber: 1,
       source: 'anibridge',
     });
 
     const imdbMovie = resolver.resolveMovie({ imdbId: 'TT0119698' });
     expect(imdbMovie).toEqual({
-      animeId: '7',
       episodeNumber: 1,
       source: 'anibridge',
     });
+  });
+
+  test('should resolve AniList mapping directly from tvdb_show node in AniBridge', () => {
+    const aniBridge = AniBridgeIndex.parse({
+      'anidb:6793:R': {
+        'tvdb_show:82807:s2': { '1-13': '1-13' },
+        'anilist:9355': { '1': '1' }, // Faulty special mapping in AniDB node
+      },
+      'tvdb_show:82807:s2': {
+        'anidb:6793:R': { '1-13': '1-13' },
+        'anilist:5277': { '1-13': '1-13' }, // Correct season mapping on TVDB node
+      },
+    });
+    const resolver = new AnimeResolver();
+    resolver.setIndices(aniBridge);
+
+    const ep1 = resolver.resolveEpisode({ tvdbId: '82807' }, 2, 1);
+    expect(ep1?.anilist?.mediaId).toBe(5277);
+    expect(ep1?.anilist?.episodeNumber).toBe(1);
+
+    const ep2 = resolver.resolveEpisode({ tvdbId: '82807' }, 2, 2);
+    expect(ep2?.anilist?.mediaId).toBe(5277);
+    expect(ep2?.anilist?.episodeNumber).toBe(2);
   });
 });
 
@@ -275,7 +290,6 @@ describe('Overrides & Fallback Precedence', () => {
 
     const result = resolver.resolveEpisode({ tvdbId: '500' }, 1, 1);
     expect(result).toEqual({
-      animeId: '999',
       episodeNumber: 1,
       isSpecial: false,
       kind: 'regular',
@@ -291,7 +305,6 @@ describe('Overrides & Fallback Precedence', () => {
 
     const result = resolver.resolveEpisode({ tvdbId: '600' }, 1, 4);
     expect(result).toEqual({
-      animeId: '200',
       episodeNumber: 4,
       isSpecial: false,
       kind: 'regular',
@@ -307,11 +320,56 @@ describe('Overrides & Fallback Precedence', () => {
 
     const result = resolver.resolveEpisode({ tvdbId: '600' }, 0, 12);
     expect(result).toEqual({
-      animeId: '201',
       episodeNumber: 2,
       isSpecial: false,
       kind: 'regular',
       source: 'animelist',
     });
+  });
+
+  test('should fallback to official mapping if override episode exists without anilistId', () => {
+    const aniBridgeSample = AniBridgeIndex.parse({
+      'anidb:17617:R': {
+        'tvdb_show:439265:s1': { '1-28': '1-28' },
+        'anilist:154587': { '1-28': '1-28' },
+      },
+    });
+    const tvdbOverrides = TvdbOverridesIndex.parse({
+      '439265': {
+        title: "Frieren: Beyond Journey's End",
+        seasons: {
+          '1': {
+            episodes: {
+              '1': {
+                name: 'The End of the Journey',
+                // anilistId omitted - using official mapping
+              },
+              '2': {
+                name: 'It Was Not Necessary',
+                anilistId: 99999, // custom override
+                anilistEpisode: 1,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    const resolver = new AnimeResolver();
+    resolver.setIndices(aniBridgeSample, null, null, tvdbOverrides);
+
+    // Official resolution directly
+    const official = resolver.resolveOfficialEpisode({ tvdbId: '439265' }, 1, 1);
+    expect(official?.anilist?.mediaId).toBe(154587);
+
+    // Ep 1 has override entry without anilistId -> falls back to official
+    const ep1 = resolver.resolveEpisode({ tvdbId: '439265' }, 1, 1);
+    expect(ep1?.anilist?.mediaId).toBe(154587);
+
+    // Ep 2 has custom override -> uses override
+    const ep2 = resolver.resolveEpisode({ tvdbId: '439265' }, 1, 2);
+    expect(ep2?.anilist?.mediaId).toBe(99999);
+    expect(ep2?.anilist?.episodeNumber).toBe(1);
+    expect(ep2?.source).toBe('overrides');
   });
 });

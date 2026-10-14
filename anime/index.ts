@@ -4,5 +4,6 @@ export * from './segments';
 export * from './anibridge';
 export * from './animelist';
 export * from './overrides';
+export * from './tvdb-overrides';
 export * from './cache';
 export * from './resolver';

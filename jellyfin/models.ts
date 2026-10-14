@@ -25,7 +25,7 @@ export interface RawJellyfinPayload extends Record<string, any> {
 export interface NormalizedPlaybackEvent {
   notificationType: string;
   username: string;
-  itemType: 'Episode' | 'Movie' | 'Other';
+  itemType: 'Episode' | 'Movie' | 'Series' | 'Season' | 'Other';
   itemId?: string;
   name: string;
   seriesName?: string;
@@ -44,14 +44,12 @@ export interface NormalizedPlaybackEvent {
     tvdb?: string;
     tmdb?: string;
     imdb?: string;
-    anidb?: string;
     [key: string]: string | undefined;
   };
   seriesProviderIds: {
     tvdb?: string;
     tmdb?: string;
     imdb?: string;
-    anidb?: string;
     [key: string]: string | undefined;
   };
 }

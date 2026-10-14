@@ -1,5 +1,14 @@
 import { defaultAnimeResolver } from './anime';
 import { renderAuthHtml } from './auth/page';
+import {
+  handleGetOverrides,
+  handleImportOverrides,
+  handleOverridesPage,
+  handleRetireRedundantOverrides,
+  handleSaveOverrides,
+  handleSyncCatalog,
+  handleSyncSeries,
+} from './overrides/api';
 import { defaultJellyfinClient, type RawJellyfinPayload } from './jellyfin';
 import { handleWebhook } from './main';
 import { appConfig, saveAniListUserToken, saveUserToken } from './shared/config';
@@ -17,6 +26,7 @@ import {
   validateUserToken,
 } from './simkl/auth';
 import { flushAllAniListQueues } from './anilist/scrobbler';
+import { flushAllPendingSeriesSync } from './overrides/series-debouncer';
 import { flushAllQueues } from './simkl/batcher';
 
 import { initLogger } from './shared/logger';
@@ -126,6 +136,28 @@ const server = Bun.serve({
     },
     '/auth': {
       GET: handleAuthPage,
+    },
+    '/overrides': {
+      GET: handleOverridesPage,
+    },
+    '/api/overrides': {
+      GET: handleGetOverrides,
+      POST: handleSaveOverrides,
+    },
+    '/api/overrides/import': {
+      POST: handleImportOverrides,
+    },
+    '/api/catalog/sync': {
+      POST: handleSyncCatalog,
+    },
+    '/api/catalog/sync-series': {
+      POST: handleSyncSeries,
+    },
+    '/api/series/sync': {
+      POST: handleSyncSeries,
+    },
+    '/api/overrides/retire-redundant': {
+      POST: (req) => handleRetireRedundantOverrides(req),
     },
     '/api/users': {
       GET: async () => {
@@ -439,6 +471,7 @@ const handleShutdown = async (signal: string) => {
   try {
     await flushAllQueues();
     await flushAllAniListQueues();
+    await flushAllPendingSeriesSync();
   } catch (err) {
     console.error('Error flushing queues during shutdown:', err);
   }

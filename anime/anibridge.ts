@@ -1,4 +1,4 @@
-import type { AniBridgeEntry, AniBridgeSpan, AniDbSeasonSegment, EpisodeKind } from './models';
+import type { AniBridgeEntry, AniBridgeSpan, AnimeSeasonSegment, EpisodeKind } from './models';
 import { pair, rangeLength, readAllRanges, readTarget } from './range';
 import { resolveSeasonSegments } from './segments';
 
@@ -18,11 +18,14 @@ export class AniBridgeIndex {
   public readonly entriesByTmdb: Map<string, AniBridgeEntry[]> = new Map();
   public readonly entriesByAnimeId: Map<string, AniBridgeEntry> = new Map();
   public readonly anilistByAnimeScope: Map<string, AniListTargetMapping[]> = new Map();
+  public readonly anilistByTvdbSeason: Map<string, AniListTargetMapping[]> = new Map();
+  public readonly anilistMoviesByKey: Map<string, { mediaId: number; episodeNumber: number }> =
+    new Map();
   public readonly moviesByKey: Map<string, MovieClaim> = new Map();
   public readonly tvdbToTmdbShow: Map<string, string> = new Map();
   public readonly tmdbToTvdbShow: Map<string, string> = new Map();
 
-  private readonly placements: Map<string, AniDbSeasonSegment[]> = new Map();
+  private readonly placements: Map<string, AnimeSeasonSegment[]> = new Map();
 
   public static parse(jsonStringOrObject: string | Record<string, any>): AniBridgeIndex {
     const rawData =
@@ -33,22 +36,28 @@ export class AniBridgeIndex {
     const index = new AniBridgeIndex();
 
     for (const [key, targets] of Object.entries(rawData)) {
-      if (!key.startsWith('anidb:')) {
-        continue;
-      }
-
-      // Format: anidb:<animeId>:<scope> where scope is R, S, or O
-      const parts = key.split(':');
-      if (parts.length < 3) continue;
-
-      const animeId = parts[1]!;
-      const scopeLetter = parts[2]!;
-      const kind: EpisodeKind =
-        scopeLetter === 'S' ? 'special' : scopeLetter === 'O' ? 'other' : 'regular';
-
       if (!targets || typeof targets !== 'object') continue;
 
-      index.processEntryTargets(animeId, kind, targets);
+      if (key.startsWith('anidb:')) {
+        // Format: anidb:<animeId>:<scope> where scope is R, S, or O
+        const parts = key.split(':');
+        if (parts.length < 3) continue;
+
+        const animeId = parts[1]!;
+        const scopeLetter = parts[2]!;
+        const kind: EpisodeKind =
+          scopeLetter === 'S' ? 'special' : scopeLetter === 'O' ? 'other' : 'regular';
+
+        index.processEntryTargets(animeId, kind, targets);
+      } else if (key.startsWith('tvdb_show:')) {
+        index.processTvdbShowNode(key, targets);
+      } else if (
+        key.startsWith('tvdb_movie:') ||
+        key.startsWith('tmdb_movie:') ||
+        key.startsWith('imdb_movie:')
+      ) {
+        index.processMovieNode(key, targets);
+      }
     }
 
     return index;
@@ -214,6 +223,71 @@ export class AniBridgeIndex {
     }
   }
 
+  private processTvdbShowNode(key: string, targets: Record<string, any>): void {
+    // Format: tvdb_show:<showId>:s<season>
+    const parts = key.split(':');
+    if (parts.length < 3) return;
+
+    const showId = parts[1]!;
+    const seasonStr = parts[2]!;
+    if (!seasonStr.startsWith('s')) return;
+
+    const season = parseInt(seasonStr.slice(1), 10);
+    if (!Number.isInteger(season)) return;
+
+    const seasonKey = `${showId}:${season}`;
+
+    for (const [descriptor, mapping] of Object.entries(targets)) {
+      if (typeof mapping !== 'object' || mapping === null) continue;
+
+      if (descriptor.startsWith('anilist:')) {
+        const id = parseInt(descriptor.slice('anilist:'.length), 10);
+        if (Number.isInteger(id)) {
+          let list = this.anilistByTvdbSeason.get(seasonKey);
+          if (!list) {
+            list = [];
+            this.anilistByTvdbSeason.set(seasonKey, list);
+          }
+          list.push({ anilistMediaId: id, mapping });
+        }
+      }
+    }
+  }
+
+  private processMovieNode(descriptor: string, targets: Record<string, any>): void {
+    const colonIndex = descriptor.indexOf(':');
+    const prefix = descriptor.slice(0, colonIndex);
+    const rawId = descriptor.slice(colonIndex + 1).trim();
+
+    let movieKey: string | null = null;
+    if (prefix === 'tmdb_movie') {
+      movieKey = `tmdb:${rawId}`;
+    } else if (prefix === 'imdb_movie') {
+      movieKey = `imdb:${rawId.toLowerCase()}`;
+    } else if (prefix === 'tvdb_movie') {
+      movieKey = `tvdb:${rawId}`;
+    }
+
+    if (!movieKey) return;
+
+    for (const [targetDesc, mapping] of Object.entries(targets)) {
+      if (typeof mapping !== 'object' || mapping === null) continue;
+      if (targetDesc.startsWith('anilist:')) {
+        const id = parseInt(targetDesc.slice('anilist:'.length), 10);
+        if (Number.isInteger(id)) {
+          for (const [, targetEpVal] of Object.entries(mapping)) {
+            const epNum = parseInt(String(targetEpVal), 10);
+            this.anilistMoviesByKey.set(movieKey, {
+              mediaId: id,
+              episodeNumber: Number.isInteger(epNum) ? epNum : 1,
+            });
+            break;
+          }
+        }
+      }
+    }
+  }
+
   public getEntriesForShow(seriesKey: string): AniBridgeEntry[] | null {
     return this.entriesByTvdb.get(seriesKey) ?? null;
   }
@@ -232,7 +306,7 @@ export class AniBridgeIndex {
     return this.getEntriesForShow(entry.seriesKey);
   }
 
-  public placeSeason(siblings: AniBridgeEntry[], seasonNumber: number): AniDbSeasonSegment[] {
+  public placeSeason(siblings: AniBridgeEntry[], seasonNumber: number): AnimeSeasonSegment[] {
     if (seasonNumber < 1 || siblings.length === 0) {
       return [];
     }
@@ -244,14 +318,14 @@ export class AniBridgeIndex {
       return cached;
     }
 
-    const claimsByKind = new Map<EpisodeKind, AniDbSeasonSegment[]>();
+    const claimsByKind = new Map<EpisodeKind, AnimeSeasonSegment[]>();
 
     for (const entry of siblings) {
       for (const span of entry.spans) {
         if (span.season !== seasonNumber) continue;
 
         const epCount = rangeLength(span.inSeason) ?? 0;
-        const segment: AniDbSeasonSegment = {
+        const segment: AnimeSeasonSegment = {
           animeId: entry.animeId,
           firstEpisodeNumber: span.inSeason.start,
           episodeCount: epCount,
@@ -363,6 +437,60 @@ export class AniBridgeIndex {
       }
     }
 
+    return null;
+  }
+
+  public resolveAniListFromTvdb(
+    tvdbId: string,
+    seasonNumber: number,
+    episodeNumber: number,
+  ): { mediaId: number; episodeNumber: number } | null {
+    const seasonKey = `${tvdbId}:${seasonNumber}`;
+    const targets = this.anilistByTvdbSeason.get(seasonKey);
+    if (!targets) {
+      return null;
+    }
+
+    for (const target of targets) {
+      for (const [sourceKey, targetVal] of Object.entries(target.mapping)) {
+        const sourceRanges = readAllRanges(sourceKey);
+        const targetDesc = readTarget(String(targetVal));
+        if (!sourceRanges || !targetDesc) continue;
+
+        const pairs = pair(sourceRanges, targetDesc.ranges, targetDesc.ratio);
+        for (const [src, tgt] of pairs) {
+          const last = src.end ?? Number.MAX_SAFE_INTEGER;
+          if (episodeNumber >= src.start && episodeNumber <= last) {
+            const offset = episodeNumber - src.start;
+            return {
+              mediaId: target.anilistMediaId,
+              episodeNumber: tgt.start + offset,
+            };
+          }
+        }
+      }
+    }
+
+    return null;
+  }
+
+  public resolveAniListMovie(
+    tmdbId?: string,
+    imdbId?: string,
+    tvdbId?: string,
+  ): { mediaId: number; episodeNumber: number } | null {
+    if (tmdbId) {
+      const match = this.anilistMoviesByKey.get(`tmdb:${tmdbId}`);
+      if (match) return match;
+    }
+    if (imdbId) {
+      const match = this.anilistMoviesByKey.get(`imdb:${imdbId.toLowerCase()}`);
+      if (match) return match;
+    }
+    if (tvdbId) {
+      const match = this.anilistMoviesByKey.get(`tvdb:${tvdbId}`);
+      if (match) return match;
+    }
     return null;
   }
 }

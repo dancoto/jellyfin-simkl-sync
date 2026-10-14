@@ -1,4 +1,4 @@
-import type { AniDbSeasonSegment, EpisodeKind } from './models';
+import type { AnimeSeasonSegment, EpisodeKind } from './models';
 import { orderSegments } from './segments';
 
 export interface AnimeListEntry {
@@ -103,12 +103,12 @@ export class AnimeListIndex {
     return this.entriesByTvdb.get(seriesKey) ?? null;
   }
 
-  public placeSeason(siblings: AnimeListEntry[], seasonNumber: number): AniDbSeasonSegment[] {
+  public placeSeason(siblings: AnimeListEntry[], seasonNumber: number): AnimeSeasonSegment[] {
     if (seasonNumber < 1 || siblings.length === 0) {
       return [];
     }
 
-    const segments: AniDbSeasonSegment[] = [];
+    const segments: AnimeSeasonSegment[] = [];
 
     for (const entry of siblings) {
       if (entry.defaultTvdbSeason === seasonNumber) {

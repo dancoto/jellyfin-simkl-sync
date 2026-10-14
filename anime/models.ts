@@ -18,7 +18,7 @@ export interface AniBridgeEntry {
   spans: AniBridgeSpan[];
 }
 
-export interface AniDbSeasonSegment {
+export interface AnimeSeasonSegment {
   animeId: string;
   firstEpisodeNumber: number;
   episodeCount: number;
@@ -27,7 +27,6 @@ export interface AniDbSeasonSegment {
 }
 
 export interface AnimeEpisodeResult {
-  animeId: string;
   episodeNumber: number;
   isSpecial: boolean;
   kind: EpisodeKind;
@@ -36,22 +35,24 @@ export interface AnimeEpisodeResult {
     mediaId: number;
     episodeNumber: number;
   };
+  isSkipped?: boolean;
+  skipAniList?: boolean;
 }
 
 export interface AnimeMovieResult {
-  animeId: string;
   episodeNumber: number;
   source: 'overrides' | 'anibridge' | 'animelist';
   anilist?: {
     mediaId: number;
     episodeNumber: number;
   };
+  isSkipped?: boolean;
+  skipAniList?: boolean;
 }
 
 export interface SeriesLookupQuery {
   tvdbId?: string;
   tmdbId?: string;
-  anidbId?: string;
   anilistId?: string;
 }
 
@@ -59,6 +60,5 @@ export interface MovieLookupQuery {
   tmdbId?: string;
   imdbId?: string;
   tvdbId?: string;
-  anidbId?: string;
   anilistId?: string;
 }
