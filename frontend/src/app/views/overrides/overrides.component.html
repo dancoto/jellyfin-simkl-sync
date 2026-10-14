@@ -1,48 +1,48 @@
 <div class="overrides-view">
   <div class="view-container">
     <app-stats-banner
-      [summary]="statsSummary()"
-      [selectedFilter]="currentFilter()"
-      (selectFilter)="handleFilterSelect($event)"
+      [summary]="store.statsSummary()"
+      [selectedFilter]="store.currentFilter()"
+      (selectFilter)="store.setFilter($event)"
     />
 
     <app-controls-bar
-      [search]="searchQuery()"
-      [filter]="currentFilter()"
-      [sort]="currentSort()"
-      [allExpanded]="allExpanded()"
-      [isSyncing]="isSyncingLibrary()"
-      [isRetiring]="isRetiring()"
-      [filterCounts]="filterCounts()"
-      (searchChange)="searchQuery.set($event); currentPage.set(1)"
-      (filterChange)="currentFilter.set($event); currentPage.set(1)"
-      (sortChange)="currentSort.set($event); currentPage.set(1)"
-      (syncLibrary)="handleSyncLibrary()"
-      (retireRedundant)="isRetireOpen.set(true)"
-      (bulkImport)="isBulkImportOpen.set(true)"
-      (toggleExpandAll)="toggleAllCards()"
+      [search]="store.searchQuery()"
+      [filter]="store.currentFilter()"
+      [sort]="store.currentSort()"
+      [allExpanded]="store.allExpanded()"
+      [isSyncing]="store.isSyncingLibrary()"
+      [isRetiring]="store.isRetiring()"
+      [filterCounts]="store.filterCounts()"
+      (searchChange)="store.setSearch($event)"
+      (filterChange)="store.setFilter($event)"
+      (sortChange)="store.setSort($event)"
+      (syncLibrary)="store.syncLibrary()"
+      (retireRedundant)="store.setRetireOpen(true)"
+      (bulkImport)="store.setBulkImportOpen(true)"
+      (toggleExpandAll)="store.toggleAllCards()"
     />
 
     <!-- Loading State -->
-    @if (isLoading()) {
+    @if (store.isLoading()) {
       <div class="loading-container">
         <span class="spinner">⏳</span>
         <p>Loading anime catalog and overrides...</p>
       </div>
-    } @else if (filteredShows().length === 0) {
+    } @else if (store.filteredShows().length === 0) {
       <!-- Empty State -->
       <div class="empty-state">
-        @if (filteredShows().length === 0 && filterCounts().all === 0) {
+        @if (store.filteredShows().length === 0 && store.filterCounts().all === 0) {
           <p>
             No anime catalog found. Click <strong>"🔄 Sync Library"</strong> to scan your Jellyfin anime libraries.
           </p>
-        } @else if (currentFilter() === 'unmapped') {
+        } @else if (store.currentFilter() === 'unmapped') {
           <p>🌸 No series are currently missing AniList mappings!</p>
-        } @else if (currentFilter() === 'overrides') {
+        } @else if (store.currentFilter() === 'overrides') {
           <p>⚡ No series currently have custom overrides.</p>
-        } @else if (currentFilter() === 'skipped') {
+        } @else if (store.currentFilter() === 'skipped') {
           <p>🌸 No series currently have skipped AniList episodes.</p>
-        } @else if (currentFilter() === 'mapped') {
+        } @else if (store.currentFilter() === 'mapped') {
           <p>No series are completely mapped yet.</p>
         } @else {
           <p>No series match your search or filter.</p>
@@ -52,80 +52,80 @@
       <!-- Series List with Lazy DOM Accordion -->
       <div class="series-list">
         <app-pagination
-          [currentPage]="currentPage()"
-          [totalItems]="filteredShows().length"
-          [pageSize]="pageSize()"
-          (pageChange)="currentPage.set($event)"
-          (pageSizeChange)="pageSize.set($event)"
+          [currentPage]="store.currentPage()"
+          [totalItems]="store.filteredShows().length"
+          [pageSize]="store.pageSize()"
+          (pageChange)="store.setPage($event)"
+          (pageSizeChange)="store.setPageSize($event)"
         />
 
-        @for (entry of paginatedShows(); track entry[0]) {
+        @for (entry of store.paginatedShows(); track entry[0]) {
           <app-series-card
             [tvdbId]="entry[0]"
             [show]="entry[1]"
-            [overrideShow]="overridesData()[entry[0]]"
-            [officialShow]="officialData()[entry[0]]"
-            [isModified]="dirtyShows().has(entry[0])"
-            [isOpen]="isCardOpen(entry[0])"
-            [isSyncing]="syncingSeriesIds().has(entry[0])"
-            (toggleOpen)="toggleCard(entry[0])"
-            (syncSeries)="handleSyncSeries($event)"
-            (saveSeries)="handleSaveShow($event)"
-            (updateEpisode)="handleUpdateEpisode(entry[0], $event)"
-            (useOfficialEpisode)="handleUseOfficialEpisode(entry[0], $event)"
-            (toggleSkipEpisode)="handleToggleSkipEpisode(entry[0], $event)"
-            (clearOverrideEpisode)="handleClearOverrideEpisode(entry[0], $event)"
-            (applyBatchSeason)="handleApplyBatchSeason(entry[0], $event)"
-            (applyOfficialSeason)="handleApplyOfficialSeason(entry[0], $event)"
-            (skipUnmappedSeason)="handleSkipUnmappedSeason(entry[0], $event)"
+            [overrideShow]="store.overridesData()[entry[0]]"
+            [officialShow]="store.officialData()[entry[0]]"
+            [isModified]="store.dirtyShows().includes(entry[0])"
+            [isOpen]="store.allExpanded() || store.openCards().includes(entry[0])"
+            [isSyncing]="store.syncingSeriesIds().includes(entry[0])"
+            (toggleOpen)="store.toggleCard(entry[0])"
+            (syncSeries)="store.syncSeries($event)"
+            (saveSeries)="store.saveShow($event)"
+            (updateEpisode)="store.updateEpisode(entry[0], $event)"
+            (useOfficialEpisode)="store.useOfficialEpisode(entry[0], $event)"
+            (toggleSkipEpisode)="store.toggleSkipEpisode(entry[0], $event)"
+            (clearOverrideEpisode)="store.clearOverrideEpisode(entry[0], $event)"
+            (applyBatchSeason)="store.applyBatchSeason(entry[0], $event)"
+            (applyOfficialSeason)="store.applyOfficialSeason(entry[0], $event)"
+            (skipUnmappedSeason)="store.skipUnmappedSeason(entry[0], $event)"
           />
         }
 
         <app-pagination
-          [currentPage]="currentPage()"
-          [totalItems]="filteredShows().length"
-          [pageSize]="pageSize()"
-          (pageChange)="currentPage.set($event)"
-          (pageSizeChange)="pageSize.set($event)"
+          [currentPage]="store.currentPage()"
+          [totalItems]="store.filteredShows().length"
+          [pageSize]="store.pageSize()"
+          (pageChange)="store.setPage($event)"
+          (pageSizeChange)="store.setPageSize($event)"
         />
       </div>
     }
   </div>
 
   <!-- Floating Save Banner -->
-  @if (dirtyShows().size > 0) {
+  @if (store.dirtyShows().length > 0) {
     <div class="save-banner">
       <span class="save-banner-text">
-        ⚡ {{ dirtyShows().size }} show(s) modified
+        ⚡ {{ store.dirtyShows().length }} show(s) modified
       </span>
-      <button class="btn btn-primary" [disabled]="isSaving()" (click)="handleSaveAllChanges()">
-        @if (isSaving()) {
+      <button class="btn btn-primary" [disabled]="store.isSaving()" (click)="store.saveAllChanges()">
+        @if (store.isSaving()) {
           <span class="spinner-inline">⏳</span>
         } @else {
           <span>💾</span>
         }
-        {{ isSaving() ? 'Saving Changes...' : 'Save All Changes' }}
+        {{ store.isSaving() ? 'Saving Changes...' : 'Save All Changes' }}
       </button>
     </div>
   }
 
   <!-- Toast Notification -->
-  @if (toast().visible) {
-    <div class="toast" [class]="toast().type">
-      {{ toast().message }}
+  @if (store.toast().visible) {
+    <div class="toast" [class]="store.toast().type">
+      {{ store.toast().message }}
     </div>
   }
 
   <!-- Modals -->
   <app-bulk-import-modal
-    [isOpen]="isBulkImportOpen()"
-    (close)="isBulkImportOpen.set(false)"
-    (synced)="loadData()"
+    [isOpen]="store.isBulkImportOpen()"
+    (close)="store.setBulkImportOpen(false)"
+    (synced)="store.loadData()"
   />
 
   <app-retire-redundant-modal
-    [isOpen]="isRetireOpen()"
-    (close)="isRetireOpen.set(false)"
-    (retired)="loadData()"
+    [isOpen]="store.isRetireOpen()"
+    (close)="store.setRetireOpen(false)"
+    (retired)="store.loadData()"
   />
 </div>

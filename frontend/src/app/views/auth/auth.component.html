@@ -13,17 +13,17 @@
     </div>
   }
 
-  @if (errorMessage() || usersResource.error()) {
+  @if (errorMessage() || store.error()) {
     <div class="alert alert-danger">
       <span class="alert-icon">⚠</span>
       <div>
         <strong>Authentication Error</strong>
-        <p>{{ errorMessage() || usersResource.error() }}</p>
+        <p>{{ errorMessage() || store.error() }}</p>
       </div>
     </div>
   }
 
-  @if (actionNotification(); as notif) {
+  @if (store.actionNotification(); as notif) {
     <div class="alert" [class]="notif.type === 'success' ? 'alert-success' : 'alert-danger'">
       <span class="alert-icon">{{ notif.type === 'success' ? '✓' : '⚠' }}</span>
       <div>
@@ -33,7 +33,7 @@
     </div>
   }
 
-  @if (usersResource.value(); as data) {
+  @if (store.data(); as data) {
     @if (!data.simkl.configured) {
       <div class="alert alert-danger">
         <span class="alert-icon">⚠️</span>
@@ -88,9 +88,9 @@
                 <button
                   type="button"
                   class="copy-btn"
-                  (click)="copyText(data.simkl.redirectUri, 'simkl')"
+                  (click)="store.copyText(data.simkl.redirectUri, 'simkl')"
                 >
-                  {{ copiedService() === 'simkl' ? 'Copied!' : 'Copy' }}
+                  {{ store.copiedService() === 'simkl' ? 'Copied!' : 'Copy' }}
                 </button>
               </div>
             </div>
@@ -133,9 +133,9 @@
                 <button
                   type="button"
                   class="copy-btn"
-                  (click)="copyText(data.anilist.redirectUri, 'anilist')"
+                  (click)="store.copyText(data.anilist.redirectUri, 'anilist')"
                 >
-                  {{ copiedService() === 'anilist' ? 'Copied!' : 'Copy' }}
+                  {{ store.copiedService() === 'anilist' ? 'Copied!' : 'Copy' }}
                 </button>
               </div>
             </div>
@@ -158,7 +158,7 @@
             <label for="user-select">Select Jellyfin User:</label>
             <select
               id="user-select"
-              [value]="selectedUser()"
+              [value]="store.selectedUser()"
               (change)="onUserSelect($event)"
               class="form-select"
             >
@@ -169,12 +169,12 @@
               <option value="__custom__">✎ Enter custom username...</option>
             </select>
           </div>
-          @if (isCustomUser()) {
+          @if (store.isCustomUser()) {
             <div class="form-group flex-1">
               <label for="custom-username">Custom Username:</label>
               <input
                 id="custom-username"
-                [value]="customUsername()"
+                [value]="store.customUsername()"
                 (input)="onCustomUserInput($event)"
                 type="text"
                 class="form-input"
@@ -188,7 +188,7 @@
           <button
             type="button"
             class="btn btn-primary"
-            [disabled]="!targetUsername() || !data.simkl.configured"
+            [disabled]="!store.targetUsername() || !data.simkl.configured"
             [title]="!data.simkl.configured ? 'Configure Simkl client_id first' : 'Authorize selected user on Simkl'"
             (click)="connectSimkl()"
           >
@@ -197,7 +197,7 @@
           <button
             type="button"
             class="btn btn-anilist"
-            [disabled]="!targetUsername() || !data.anilist.configured"
+            [disabled]="!store.targetUsername() || !data.anilist.configured"
             [title]="!data.anilist.configured ? 'Configure AniList client_id first' : 'Authorize selected user on AniList'"
             (click)="connectAniList()"
           >
@@ -216,10 +216,10 @@
         </div>
         <button
           class="btn btn-secondary"
-          (click)="usersResource.reload()"
-          [disabled]="usersResource.isLoading()"
+          (click)="store.loadUsers()"
+          [disabled]="store.isLoading()"
         >
-          🔄 {{ usersResource.isLoading() ? 'Checking...' : 'Refresh Status' }}
+          🔄 {{ store.isLoading() ? 'Checking...' : 'Refresh Status' }}
         </button>
       </div>
 
@@ -316,11 +316,11 @@
                     @if (user.simkl.hasRefreshToken) {
                       <button
                         class="btn btn-sm btn-secondary"
-                        [disabled]="refreshingUsers().has(user.username)"
+                        [disabled]="store.refreshingUsers().includes(user.username)"
                         title="Manually trigger OAuth token refresh for Simkl"
-                        (click)="refreshUser(user.username)"
+                        (click)="store.refreshUser(user.username)"
                       >
-                        {{ refreshingUsers().has(user.username) ? '↻...' : '↻ Refresh' }}
+                        {{ store.refreshingUsers().includes(user.username) ? '↻...' : '↻ Refresh' }}
                       </button>
                     }
                     @if (data.simkl.configured) {
@@ -347,14 +347,14 @@
         </div>
       }
     </div>
-  } @else if (usersResource.isLoading()) {
+  } @else if (store.isLoading()) {
     <div class="loading-state">
       <div class="spinner"></div>
       <p>Querying Jellyfin API and validating tracker tokens...</p>
     </div>
-  } @else if (usersResource.error()) {
+  } @else if (store.error()) {
     <div class="empty-state">
-      <p style="color: #f87171;">Failed to connect: {{ usersResource.error() }}</p>
+      <p style="color: #f87171;">Failed to connect: {{ store.error() }}</p>
     </div>
   }
 </div>

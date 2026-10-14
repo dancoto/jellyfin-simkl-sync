@@ -1,6 +1,11 @@
 import { Component, computed, input, output, signal } from '@angular/core';
 import { CatalogEpisode, CatalogShow, OfficialEpisodeInfo, RawEpisodeOverride, RawShowOverride } from '../../models/types';
 import { EpisodeRowComponent } from '../episode-row/episode-row.component';
+import {
+  isEpisodeMissingAniList,
+  isEpisodeOverridden,
+  isEpisodeSkipped,
+} from '../../stores/overrides.store.utils';
 
 export interface SeasonViewItem {
   seasonNum: string;
@@ -54,25 +59,21 @@ export class SeriesCardComponent {
   }
 
   isEpSkipped(seasonNum: string, epNum: string): boolean {
-    return Boolean(this.getOverrideEp(seasonNum, epNum)?.skipAniList);
+    return isEpisodeSkipped(this.getOverrideEp(seasonNum, epNum));
   }
 
   isEpMissingAniList(seasonNum: string, epNum: string): boolean {
-    const ovr = this.getOverrideEp(seasonNum, epNum);
-    if (ovr?.skipAniList) return false;
-    if (typeof ovr?.anilistId === 'number') return false;
-    if (ovr?.anilistId === null) return true;
-    return !this.getOfficialEp(seasonNum, epNum);
+    return isEpisodeMissingAniList(
+      this.getOverrideEp(seasonNum, epNum),
+      this.getOfficialEp(seasonNum, epNum)
+    );
   }
 
   isEpOverridden(seasonNum: string, epNum: string): boolean {
-    const ovr = this.getOverrideEp(seasonNum, epNum);
-    if (ovr?.skipAniList) return false;
-    if (typeof ovr?.anilistId === 'number') {
-      const off = this.getOfficialEp(seasonNum, epNum);
-      return !off || off.anilistId !== ovr.anilistId || off.anilistEpisode !== ovr.anilistEpisode;
-    }
-    return false;
+    return isEpisodeOverridden(
+      this.getOverrideEp(seasonNum, epNum),
+      this.getOfficialEp(seasonNum, epNum)
+    );
   }
 
   showStats = computed(() => {

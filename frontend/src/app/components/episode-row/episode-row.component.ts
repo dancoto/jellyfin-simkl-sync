@@ -1,5 +1,10 @@
 import { Component, computed, input, output } from '@angular/core';
 import { OfficialEpisodeInfo, RawEpisodeOverride } from '../../models/types';
+import {
+  isEpisodeMissingAniList,
+  isEpisodeOverridden,
+  isEpisodeSkipped,
+} from '../../stores/overrides.store.utils';
 
 @Component({
   selector: 'tr[app-episode-row]',
@@ -22,26 +27,13 @@ export class EpisodeRowComponent {
   toggleSkip = output<void>();
   clearOverride = output<void>();
 
-  isAniListSkipped = computed(() => Boolean(this.override()?.skipAniList));
-
-  isMissingAniList = computed(() => {
-    if (this.isAniListSkipped()) return false;
-    const ovr = this.override();
-    if (typeof ovr?.anilistId === 'number') return false;
-    if (ovr?.anilistId === null) return true;
-    return !this.official();
-  });
-
-  isOverridden = computed(() => {
-    if (this.isAniListSkipped()) return false;
-    const ovr = this.override();
-    if (typeof ovr?.anilistId === 'number') {
-      const off = this.official();
-      if (!off) return true;
-      return off.anilistId !== ovr.anilistId || off.anilistEpisode !== ovr.anilistEpisode;
-    }
-    return false;
-  });
+  isAniListSkipped = computed(() => isEpisodeSkipped(this.override()));
+  isMissingAniList = computed(() =>
+    isEpisodeMissingAniList(this.override(), this.official())
+  );
+  isOverridden = computed(() =>
+    isEpisodeOverridden(this.override(), this.official())
+  );
 
   rowClass = computed(() => {
     if (this.isAniListSkipped()) return 'skipped-anilist-row';
