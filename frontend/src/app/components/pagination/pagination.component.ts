@@ -1,7 +1,10 @@
 import { Component, computed, input, output } from '@angular/core';
+import { MatButton, MatIconButton } from '@angular/material/button';
+import { MatIcon } from '@angular/material/icon';
 
 @Component({
   selector: 'app-pagination',
+  imports: [MatButton, MatIconButton, MatIcon],
   templateUrl: './pagination.component.html',
   styleUrl: './pagination.component.css',
 })

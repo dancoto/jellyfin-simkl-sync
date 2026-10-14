@@ -1,5 +1,8 @@
 import { Component, DestroyRef, inject, input, output, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { MatButton } from '@angular/material/button';
+import { MatIcon } from '@angular/material/icon';
+import { MatProgressSpinner } from '@angular/material/progress-spinner';
 import { ApiService } from '../../../services/api.service';
 import { RetireSummary } from '../../../models/types';
 
@@ -7,6 +10,7 @@ import { RetireSummary } from '../../../models/types';
   selector: 'app-retire-redundant-modal',
   templateUrl: './retire-redundant-modal.component.html',
   styleUrl: './retire-redundant-modal.component.css',
+  imports: [MatButton, MatIcon, MatProgressSpinner],
 })
 export class RetireRedundantModalComponent {
   private api = inject(ApiService);

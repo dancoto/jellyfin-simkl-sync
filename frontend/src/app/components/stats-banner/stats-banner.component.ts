@@ -1,8 +1,10 @@
 import { Component, computed, input, output } from '@angular/core';
+import { MatCard, MatCardContent } from '@angular/material/card';
 import { OverridesSummary } from '../../models/types';
 
 @Component({
   selector: 'app-stats-banner',
+  imports: [MatCard, MatCardContent],
   templateUrl: './stats-banner.component.html',
   styleUrl: './stats-banner.component.css',
 })

@@ -54,11 +54,11 @@
     <!-- Service Configuration Cards -->
     <div class="services-grid">
       <!-- Simkl Card -->
-      <div class="service-card simkl-card">
-        <div class="service-header">
+      <mat-card appearance="outlined" class="service-card simkl-card">
+        <mat-card-header class="service-header">
           <div class="service-title-wrap">
             <span class="service-badge simkl-badge">SIMKL</span>
-            <h2>Simkl Integration</h2>
+            <h2 class="card-h2">Simkl Integration</h2>
           </div>
           <span
             class="status-pill"
@@ -66,44 +66,47 @@
           >
             {{ data.simkl.configured ? 'Configured' : 'Missing Client ID' }}
           </span>
-        </div>
-        <p class="service-desc">
-          Sync watch progress, movies, and TV shows directly to your Simkl account using OAuth 2.0 with PKCE and auto-refresh.
-        </p>
+        </mat-card-header>
+        <mat-card-content>
+          <p class="service-desc">
+            Sync watch progress, movies, and TV shows directly to your Simkl account using OAuth 2.0 with PKCE and auto-refresh.
+          </p>
 
-        <div class="config-meta-grid">
-          <div class="config-meta-item">
-            <span class="meta-label">Client ID</span>
-            <span class="meta-val">{{ data.simkl.clientId ? (data.simkl.clientId.slice(0, 10) + '...') : 'Not Set' }}</span>
-          </div>
-          <div class="config-meta-item">
-            <span class="meta-label">Client Secret</span>
-            <span class="meta-val">{{ data.simkl.hasClientSecret ? '✓ Configured' : 'Optional (Server apps)' }}</span>
-          </div>
-          @if (data.simkl.redirectUri) {
-            <div class="config-meta-item full-width">
-              <span class="meta-label">Callback / Redirect URI</span>
-              <div class="code-box">
-                <span class="code-text">{{ data.simkl.redirectUri }}</span>
-                <button
-                  type="button"
-                  class="copy-btn"
-                  (click)="store.copyText(data.simkl.redirectUri, 'simkl')"
-                >
-                  {{ store.copiedService() === 'simkl' ? 'Copied!' : 'Copy' }}
-                </button>
-              </div>
+          <div class="config-meta-grid">
+            <div class="config-meta-item">
+              <span class="meta-label">Client ID</span>
+              <span class="meta-val">{{ data.simkl.clientId ? (data.simkl.clientId.slice(0, 10) + '...') : 'Not Set' }}</span>
             </div>
-          }
-        </div>
-      </div>
+            <div class="config-meta-item">
+              <span class="meta-label">Client Secret</span>
+              <span class="meta-val">{{ data.simkl.hasClientSecret ? '✓ Configured' : 'Optional (Server apps)' }}</span>
+            </div>
+            @if (data.simkl.redirectUri) {
+              <div class="config-meta-item full-width">
+                <span class="meta-label">Callback / Redirect URI</span>
+                <div class="code-box">
+                  <span class="code-text">{{ data.simkl.redirectUri }}</span>
+                  <button
+                    mat-stroked-button
+                    type="button"
+                    class="copy-btn"
+                    (click)="store.copyText(data.simkl.redirectUri, 'simkl')"
+                  >
+                    {{ store.copiedService() === 'simkl' ? 'Copied!' : 'Copy' }}
+                  </button>
+                </div>
+              </div>
+            }
+          </div>
+        </mat-card-content>
+      </mat-card>
 
       <!-- AniList Card -->
-      <div class="service-card anilist-card">
-        <div class="service-header">
+      <mat-card appearance="outlined" class="service-card anilist-card">
+        <mat-card-header class="service-header">
           <div class="service-title-wrap">
             <span class="service-badge anilist-badge">ANILIST</span>
-            <h2>AniList Integration</h2>
+            <h2 class="card-h2">AniList Integration</h2>
           </div>
           <span
             class="status-pill"
@@ -111,245 +114,261 @@
           >
             {{ data.anilist.configured ? 'Configured' : 'Missing Client ID' }}
           </span>
-        </div>
-        <p class="service-desc">
-          Automatic anime tracking, scrobbling, and list updating to AniList via AniBridge and Anime-Lists mapping indexes.
-        </p>
+        </mat-card-header>
+        <mat-card-content>
+          <p class="service-desc">
+            Automatic anime tracking, scrobbling, and list updating to AniList via AniBridge and Anime-Lists mapping indexes.
+          </p>
 
-        <div class="config-meta-grid">
-          <div class="config-meta-item">
-            <span class="meta-label">Client ID</span>
-            <span class="meta-val">{{ data.anilist.clientId || 'Not Set (Optional)' }}</span>
-          </div>
-          <div class="config-meta-item">
-            <span class="meta-label">Client Secret</span>
-            <span class="meta-val">{{ data.anilist.hasClientSecret ? '✓ Configured' : 'Not Set' }}</span>
-          </div>
-          @if (data.anilist.redirectUri) {
-            <div class="config-meta-item full-width">
-              <span class="meta-label">Callback / Redirect URI</span>
-              <div class="code-box">
-                <span class="code-text">{{ data.anilist.redirectUri }}</span>
-                <button
-                  type="button"
-                  class="copy-btn"
-                  (click)="store.copyText(data.anilist.redirectUri, 'anilist')"
-                >
-                  {{ store.copiedService() === 'anilist' ? 'Copied!' : 'Copy' }}
-                </button>
-              </div>
+          <div class="config-meta-grid">
+            <div class="config-meta-item">
+              <span class="meta-label">Client ID</span>
+              <span class="meta-val">{{ data.anilist.clientId || 'Not Set (Optional)' }}</span>
             </div>
-          }
-        </div>
-      </div>
+            <div class="config-meta-item">
+              <span class="meta-label">Client Secret</span>
+              <span class="meta-val">{{ data.anilist.hasClientSecret ? '✓ Configured' : 'Not Set' }}</span>
+            </div>
+            @if (data.anilist.redirectUri) {
+              <div class="config-meta-item full-width">
+                <span class="meta-label">Callback / Redirect URI</span>
+                <div class="code-box">
+                  <span class="code-text">{{ data.anilist.redirectUri }}</span>
+                  <button
+                    mat-stroked-button
+                    type="button"
+                    class="copy-btn"
+                    (click)="store.copyText(data.anilist.redirectUri, 'anilist')"
+                  >
+                    {{ store.copiedService() === 'anilist' ? 'Copied!' : 'Copy' }}
+                  </button>
+                </div>
+              </div>
+            }
+          </div>
+        </mat-card-content>
+      </mat-card>
     </div>
 
     <!-- Connect User Card -->
-    <div class="card connect-user-card">
-      <div class="card-header">
+    <mat-card appearance="outlined" class="connect-user-card">
+      <mat-card-header class="card-header">
         <div>
-          <h2><span>🔗</span> Connect a Jellyfin User</h2>
+          <mat-card-title class="card-title">🔗 Connect a Jellyfin User</mat-card-title>
           <p class="subtitle">Quickly link any Jellyfin account or enter a custom username to authorize with Simkl or AniList.</p>
         </div>
-      </div>
-      <form class="connect-form" (submit)="$event.preventDefault()">
-        <div class="form-row">
-          <div class="form-group flex-1">
-            <label for="user-select">Select Jellyfin User:</label>
-            <select
-              id="user-select"
-              [value]="store.selectedUser()"
-              (change)="onUserSelect($event)"
-              class="form-select"
-            >
-              <option value="" disabled>Choose a Jellyfin user...</option>
-              @for (u of data.jellyfinUsers; track u.id || u.name) {
-                <option [value]="u.name">{{ u.name }}</option>
-              }
-              <option value="__custom__">✎ Enter custom username...</option>
-            </select>
+      </mat-card-header>
+      <mat-card-content>
+        <form class="connect-form" (submit)="$event.preventDefault()">
+          <div class="form-row">
+            <mat-form-field appearance="outline" subscriptSizing="dynamic" class="flex-1">
+              <mat-label>Select Jellyfin User</mat-label>
+              <mat-select
+                [value]="store.selectedUser()"
+                (selectionChange)="onUserSelect($event.value)"
+              >
+                @for (u of data.jellyfinUsers; track u.id || u.name) {
+                  <mat-option [value]="u.name">{{ u.name }}</mat-option>
+                }
+                <mat-option value="__custom__">✎ Enter custom username...</mat-option>
+              </mat-select>
+            </mat-form-field>
+
+            @if (store.isCustomUser()) {
+              <mat-form-field appearance="outline" subscriptSizing="dynamic" class="flex-1">
+                <mat-label>Custom Username</mat-label>
+                <input
+                  matInput
+                  [value]="store.customUsername()"
+                  (input)="onCustomUserInput($event)"
+                  type="text"
+                  placeholder="e.g. daniel"
+                  autofocus
+                />
+              </mat-form-field>
+            }
           </div>
-          @if (store.isCustomUser()) {
-            <div class="form-group flex-1">
-              <label for="custom-username">Custom Username:</label>
-              <input
-                id="custom-username"
-                [value]="store.customUsername()"
-                (input)="onCustomUserInput($event)"
-                type="text"
-                class="form-input"
-                placeholder="e.g. daniel"
-                autofocus
-              />
-            </div>
-          }
-        </div>
-        <div class="form-actions">
-          <button
-            type="button"
-            class="btn btn-primary"
-            [disabled]="!store.targetUsername() || !data.simkl.configured"
-            [title]="!data.simkl.configured ? 'Configure Simkl client_id first' : 'Authorize selected user on Simkl'"
-            (click)="connectSimkl()"
-          >
-            <span>🎬</span> Authorize on Simkl
-          </button>
-          <button
-            type="button"
-            class="btn btn-anilist"
-            [disabled]="!store.targetUsername() || !data.anilist.configured"
-            [title]="!data.anilist.configured ? 'Configure AniList client_id first' : 'Authorize selected user on AniList'"
-            (click)="connectAniList()"
-          >
-            <span>🌸</span> Authorize on AniList
-          </button>
-        </div>
-      </form>
-    </div>
+
+          <div class="form-actions">
+            <button
+              mat-flat-button
+              type="button"
+              class="connect-btn simkl-connect-btn"
+              [disabled]="!store.targetUsername() || !data.simkl.configured"
+              matTooltip="Authorize selected user on Simkl"
+              (click)="connectSimkl()"
+            >
+              🎬 Authorize on Simkl
+            </button>
+            <button
+              mat-flat-button
+              type="button"
+              class="connect-btn anilist-connect-btn"
+              [disabled]="!store.targetUsername() || !data.anilist.configured"
+              matTooltip="Authorize selected user on AniList"
+              (click)="connectAniList()"
+            >
+              🌸 Authorize on AniList
+            </button>
+          </div>
+        </form>
+      </mat-card-content>
+    </mat-card>
 
     <!-- Users Table Card -->
-    <div class="card users-card">
-      <div class="card-header">
+    <mat-card appearance="outlined" class="users-card">
+      <mat-card-header class="card-header">
         <div>
-          <h2>Jellyfin Users & Tracker Authentication</h2>
+          <mat-card-title class="card-title">Jellyfin Users & Tracker Authentication</mat-card-title>
           <p class="subtitle">Authenticate each Jellyfin user with their respective Simkl and AniList accounts.</p>
         </div>
         <button
-          class="btn btn-secondary"
+          mat-stroked-button
+          class="refresh-btn"
           (click)="store.loadUsers()"
           [disabled]="store.isLoading()"
         >
-          🔄 {{ store.isLoading() ? 'Checking...' : 'Refresh Status' }}
+          @if (store.isLoading()) {
+            <mat-progress-spinner diameter="14" mode="indeterminate" class="spinner-inline"></mat-progress-spinner>
+          } @else {
+            <mat-icon class="btn-icon">sync</mat-icon>
+          }
+          <span>{{ store.isLoading() ? 'Checking...' : 'Refresh Status' }}</span>
         </button>
-      </div>
+      </mat-card-header>
 
-      @if (data.users.length === 0) {
-        <div class="empty-state">
-          <p>No Jellyfin users found or unable to connect to Jellyfin server. Connect one above!</p>
-        </div>
-      } @else {
-        <div class="table-wrap">
-          <table class="users-table">
-            <thead>
-              <tr>
-                <th>Jellyfin User</th>
-                <th>Simkl Status</th>
-                <th>AniList Status</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              @for (user of data.users; track user.username) {
+      <mat-card-content>
+        @if (data.users.length === 0) {
+          <div class="empty-state">
+            <p>No Jellyfin users found or unable to connect to Jellyfin server. Connect one above!</p>
+          </div>
+        } @else {
+          <div class="table-wrap">
+            <table class="users-table">
+              <thead>
                 <tr>
-                  <td class="username-cell">
-                    <div class="user-avatar">{{ user.username.slice(0, 2).toUpperCase() }}</div>
-                    <strong>{{ user.username }}</strong>
-                  </td>
-
-                  <!-- Simkl Cell -->
-                  <td>
-                    @if (user.simkl.isConfigured) {
-                      <div class="token-status">
-                        <span
-                          class="badge"
-                          [class]="user.simkl.isValid ? 'badge-success' : 'badge-danger'"
-                        >
-                          {{ user.simkl.isValid ? '✓ Connected' : '✕ Invalid / Expired' }}
-                        </span>
-                        @if (user.simkl.simklUsername) {
-                          <span class="token-meta">
-                            @{{ user.simkl.simklUsername }}
-                          </span>
-                        }
-                        @if (user.simkl.expiresInDays !== undefined) {
-                          <span class="token-meta muted">
-                            Expires in {{ user.simkl.expiresInDays }}d
-                          </span>
-                        }
-                        @if (user.simkl.hasRefreshToken) {
-                          <span class="badge-tag">
-                            Auto-Refresh On
-                          </span>
-                        }
-                      </div>
-                    } @else {
-                      <div class="token-status">
-                        <span class="badge badge-muted">Not Connected</span>
-                      </div>
-                    }
-                  </td>
-
-                  <!-- AniList Cell -->
-                  <td>
-                    @if (user.anilist.isConfigured) {
-                      <div class="token-status">
-                        <span
-                          class="badge"
-                          [class]="user.anilist.isValid ? (user.anilist.expiresInDays !== undefined && user.anilist.expiresInDays <= 30 ? (user.anilist.expiresInDays <= 0 ? 'badge-danger' : 'badge-warning') : 'badge-anilist') : 'badge-danger'"
-                        >
-                          {{ user.anilist.isValid ? '✓ Connected' : '✕ Invalid / Expired' }}
-                        </span>
-                        @if (user.anilist.anilistUsername) {
-                          <span class="token-meta">
-                            @{{ user.anilist.anilistUsername }}
-                          </span>
-                        }
-                        @if (user.anilist.expiresInDays !== undefined) {
-                          <span
-                            class="token-meta muted"
-                            [class.text-warn]="user.anilist.expiresInDays <= 30 && user.anilist.expiresInDays > 0"
-                            [class.text-danger]="user.anilist.expiresInDays <= 0"
-                          >
-                            {{ user.anilist.expiresInDays <= 0 ? 'Expires today' : 'Expires in ' + user.anilist.expiresInDays + 'd' + (user.anilist.expiresInDays <= 30 ? ' (re-link soon)' : '') }}
-                          </span>
-                        }
-                      </div>
-                    } @else {
-                      <div class="token-status">
-                        <span class="badge badge-muted">Not Connected</span>
-                      </div>
-                    }
-                  </td>
-
-                  <!-- Actions Cell -->
-                  <td class="actions-cell">
-                    @if (user.simkl.hasRefreshToken) {
-                      <button
-                        class="btn btn-sm btn-secondary"
-                        [disabled]="store.refreshingUsers().includes(user.username)"
-                        title="Manually trigger OAuth token refresh for Simkl"
-                        (click)="store.refreshUser(user.username)"
-                      >
-                        {{ store.refreshingUsers().includes(user.username) ? '↻...' : '↻ Refresh' }}
-                      </button>
-                    }
-                    @if (data.simkl.configured) {
-                      <a
-                        [href]="getSimklAuthUrl(user.username)"
-                        class="btn btn-sm btn-simkl"
-                      >
-                        {{ user.simkl.isValid ? 'Re-link Simkl' : 'Link Simkl' }}
-                      </a>
-                    }
-                    @if (data.anilist.configured) {
-                      <a
-                        [href]="getAniListAuthUrl(user.username)"
-                        class="btn btn-sm btn-anilist"
-                      >
-                        {{ user.anilist.isValid ? 'Re-link AniList' : 'Link AniList' }}
-                      </a>
-                    }
-                  </td>
+                  <th>Jellyfin User</th>
+                  <th>Simkl Status</th>
+                  <th>AniList Status</th>
+                  <th>Actions</th>
                 </tr>
-              }
-            </tbody>
-          </table>
-        </div>
-      }
-    </div>
+              </thead>
+              <tbody>
+                @for (user of data.users; track user.username) {
+                  <tr>
+                    <td class="username-cell">
+                      <div class="user-avatar">{{ user.username.slice(0, 2).toUpperCase() }}</div>
+                      <strong>{{ user.username }}</strong>
+                    </td>
+
+                    <!-- Simkl Cell -->
+                    <td>
+                      @if (user.simkl.isConfigured) {
+                        <div class="token-status">
+                          <span
+                            class="badge"
+                            [class]="user.simkl.isValid ? 'badge-success' : 'badge-danger'"
+                          >
+                            {{ user.simkl.isValid ? '✓ Connected' : '✕ Invalid / Expired' }}
+                          </span>
+                          @if (user.simkl.simklUsername) {
+                            <span class="token-meta">
+                              @{{ user.simkl.simklUsername }}
+                            </span>
+                          }
+                          @if (user.simkl.expiresInDays !== undefined) {
+                            <span class="token-meta muted">
+                              Expires in {{ user.simkl.expiresInDays }}d
+                            </span>
+                          }
+                          @if (user.simkl.hasRefreshToken) {
+                            <span class="badge-tag">
+                              Auto-Refresh On
+                            </span>
+                          }
+                        </div>
+                      } @else {
+                        <div class="token-status">
+                          <span class="badge badge-muted">Not Connected</span>
+                        </div>
+                      }
+                    </td>
+
+                    <!-- AniList Cell -->
+                    <td>
+                      @if (user.anilist.isConfigured) {
+                        <div class="token-status">
+                          <span
+                            class="badge"
+                            [class]="user.anilist.isValid ? (user.anilist.expiresInDays !== undefined && user.anilist.expiresInDays <= 30 ? (user.anilist.expiresInDays <= 0 ? 'badge-danger' : 'badge-warning') : 'badge-anilist') : 'badge-danger'"
+                          >
+                            {{ user.anilist.isValid ? '✓ Connected' : '✕ Invalid / Expired' }}
+                          </span>
+                          @if (user.anilist.anilistUsername) {
+                            <span class="token-meta">
+                              @{{ user.anilist.anilistUsername }}
+                            </span>
+                          }
+                          @if (user.anilist.expiresInDays !== undefined) {
+                            <span
+                              class="token-meta muted"
+                              [class.text-warn]="user.anilist.expiresInDays <= 30 && user.anilist.expiresInDays > 0"
+                              [class.text-danger]="user.anilist.expiresInDays <= 0"
+                            >
+                              {{ user.anilist.expiresInDays <= 0 ? 'Expires today' : 'Expires in ' + user.anilist.expiresInDays + 'd' + (user.anilist.expiresInDays <= 30 ? ' (re-link soon)' : '') }}
+                            </span>
+                          }
+                        </div>
+                      } @else {
+                        <div class="token-status">
+                          <span class="badge badge-muted">Not Connected</span>
+                        </div>
+                      }
+                    </td>
+
+                    <!-- Actions Cell -->
+                    <td class="actions-cell">
+                      @if (user.simkl.hasRefreshToken) {
+                        <button
+                          mat-stroked-button
+                          class="action-sm-btn"
+                          [disabled]="store.refreshingUsers().includes(user.username)"
+                          matTooltip="Manually trigger OAuth token refresh for Simkl"
+                          (click)="store.refreshUser(user.username)"
+                        >
+                          {{ store.refreshingUsers().includes(user.username) ? '↻...' : '↻ Refresh' }}
+                        </button>
+                      }
+                      @if (data.simkl.configured) {
+                        <a
+                          mat-stroked-button
+                          [href]="getSimklAuthUrl(user.username)"
+                          class="action-sm-btn btn-simkl"
+                        >
+                          {{ user.simkl.isValid ? 'Re-link Simkl' : 'Link Simkl' }}
+                        </a>
+                      }
+                      @if (data.anilist.configured) {
+                        <a
+                          mat-stroked-button
+                          [href]="getAniListAuthUrl(user.username)"
+                          class="action-sm-btn btn-anilist"
+                        >
+                          {{ user.anilist.isValid ? 'Re-link AniList' : 'Link AniList' }}
+                        </a>
+                      }
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        }
+      </mat-card-content>
+    </mat-card>
   } @else if (store.isLoading()) {
     <div class="loading-state">
-      <div class="spinner"></div>
+      <mat-progress-spinner diameter="40" mode="indeterminate"></mat-progress-spinner>
       <p>Querying Jellyfin API and validating tracker tokens...</p>
     </div>
   } @else if (store.error()) {

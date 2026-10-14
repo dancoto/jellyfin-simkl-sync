@@ -6,25 +6,28 @@
 
     <div class="pagination-controls">
       <button
-        class="page-btn"
+        mat-icon-button
+        class="p-icon-btn"
         [disabled]="currentPage() === 1"
         title="First page"
         (click)="goToPage(1)"
       >
-        «
+        <mat-icon class="p-icon">first_page</mat-icon>
       </button>
       <button
-        class="page-btn"
+        mat-icon-button
+        class="p-icon-btn"
         [disabled]="currentPage() === 1"
         title="Previous page"
         (click)="goToPage(currentPage() - 1)"
       >
-        ‹
+        <mat-icon class="p-icon">chevron_left</mat-icon>
       </button>
 
       @for (p of visiblePages(); track p) {
         <button
-          class="page-btn"
+          mat-button
+          class="p-num-btn"
           [class.active]="p === currentPage()"
           (click)="goToPage(p)"
         >
@@ -33,20 +36,22 @@
       }
 
       <button
-        class="page-btn"
+        mat-icon-button
+        class="p-icon-btn"
         [disabled]="currentPage() === totalPages()"
         title="Next page"
         (click)="goToPage(currentPage() + 1)"
       >
-        ›
+        <mat-icon class="p-icon">chevron_right</mat-icon>
       </button>
       <button
-        class="page-btn"
+        mat-icon-button
+        class="p-icon-btn"
         [disabled]="currentPage() === totalPages()"
         title="Last page"
         (click)="goToPage(totalPages())"
       >
-        »
+        <mat-icon class="p-icon">last_page</mat-icon>
       </button>
     </div>
 

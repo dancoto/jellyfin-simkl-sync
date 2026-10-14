@@ -7,6 +7,12 @@ import {
   isEpisodeSkipped,
 } from '../../stores/overrides.store.utils';
 
+import { MatExpansionPanel, MatExpansionPanelContent, MatExpansionPanelHeader, MatExpansionPanelTitle } from '@angular/material/expansion';
+import { MatButton } from '@angular/material/button';
+import { MatIcon } from '@angular/material/icon';
+import { MatTooltip } from '@angular/material/tooltip';
+import { MatProgressSpinner } from '@angular/material/progress-spinner';
+
 export interface SeasonViewItem {
   seasonNum: string;
   label: string;
@@ -19,7 +25,17 @@ export interface SeasonViewItem {
 
 @Component({
   selector: 'app-series-card',
-  imports: [EpisodeRowComponent],
+  imports: [
+    EpisodeRowComponent,
+    MatExpansionPanel,
+    MatExpansionPanelContent,
+    MatExpansionPanelHeader,
+    MatExpansionPanelTitle,
+    MatButton,
+    MatIcon,
+    MatTooltip,
+    MatProgressSpinner,
+  ],
   templateUrl: './series-card.component.html',
   styleUrl: './series-card.component.css',
 })
@@ -49,6 +65,12 @@ export class SeriesCardComponent {
   skipUnmappedSeason = output<{ seasonNum: string }>();
 
   batchInputs = signal<Record<string, string>>({});
+
+  onExpandedChange(expanded: boolean) {
+    if (expanded !== this.isOpen()) {
+      this.toggleOpen.emit();
+    }
+  }
 
   getOfficialEp(seasonNum: string, epNum: string): OfficialEpisodeInfo | null {
     return this.officialShow()?.[seasonNum]?.[epNum] ?? null;

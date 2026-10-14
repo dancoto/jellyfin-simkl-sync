@@ -1,6 +1,11 @@
-<div class="series-card" [class.modified]="isModified()">
-  <div class="series-header" (click)="toggleOpen.emit()">
-    <div class="series-title-group">
+<mat-expansion-panel
+  class="series-card"
+  [class.modified]="isModified()"
+  [expanded]="isOpen()"
+  (expandedChange)="onExpandedChange($event)"
+>
+  <mat-expansion-panel-header class="series-header">
+    <mat-panel-title class="series-title-group">
       <div class="series-title">
         <span>{{ show().title || 'Unknown Title' }}</span>
         @if (isModified()) {
@@ -12,7 +17,7 @@
           [href]="'https://thetvdb.com/dereferrer/series/' + tvdbId()"
           target="_blank"
           class="badge badge-tvdb"
-          title="View series on TheTVDB"
+          matTooltip="View series on TheTVDB"
           (click)="$event.stopPropagation()"
         >
           TVDB {{ tvdbId() }} ↗
@@ -26,7 +31,7 @@
           [href]="'https://anilist.co/search/anime?search=' + (show().title || '')"
           target="_blank"
           class="badge badge-search"
-          title="Search series on AniList"
+          matTooltip="Search series on AniList"
           (click)="$event.stopPropagation()"
         >
           🌸 Search AniList ↗
@@ -51,36 +56,39 @@
           </span>
         }
       </div>
-    </div>
+    </mat-panel-title>
 
-    <div class="series-actions">
+    <div class="series-actions" (click)="$event.stopPropagation()">
       <button
-        class="btn btn-secondary btn-sm"
+        mat-stroked-button
+        class="header-btn"
         [disabled]="isSyncing()"
-        title="Sync this series from Jellyfin"
-        (click)="$event.stopPropagation(); syncSeries.emit(tvdbId())"
+        matTooltip="Sync this series from Jellyfin"
+        (click)="syncSeries.emit(tvdbId())"
       >
         @if (isSyncing()) {
-          <span class="spinner-inline">⏳</span>
+          <mat-progress-spinner diameter="14" mode="indeterminate" class="spinner-inline"></mat-progress-spinner>
         } @else {
-          <span>🔄</span>
+          <mat-icon class="btn-icon">sync</mat-icon>
         }
-        {{ isSyncing() ? 'Syncing...' : 'Sync Series' }}
+        {{ isSyncing() ? 'Syncing...' : 'Sync' }}
       </button>
+
       <button
-        class="btn btn-secondary btn-sm"
+        mat-flat-button
+        class="header-btn"
         [class.btn-highlight]="isModified()"
-        title="Save overrides for this series"
-        (click)="$event.stopPropagation(); saveSeries.emit(tvdbId())"
+        matTooltip="Save overrides for this series"
+        (click)="saveSeries.emit(tvdbId())"
       >
-        💾 Save
+        <mat-icon class="btn-icon">save</mat-icon>
+        Save
       </button>
-      <span class="chevron" [class.open]="isOpen()">▼</span>
     </div>
-  </div>
+  </mat-expansion-panel-header>
 
   <!-- Lazy DOM Rendering: episode elements only exist when accordion is open -->
-  @if (isOpen()) {
+  <ng-template matExpansionPanelContent>
     <div class="series-body">
       @for (season of sortedSeasons(); track season.seasonNum) {
         <div class="season-section">
@@ -118,21 +126,24 @@
               (keyup.enter)="handleApplyBatch(season.seasonNum)"
             />
             <button
-              class="btn btn-secondary btn-sm"
+              mat-stroked-button
+              class="batch-btn"
               (click)="handleApplyBatch(season.seasonNum)"
             >
               Apply to Season
             </button>
             <button
-              class="btn btn-secondary btn-sm"
-              title="Copy official AniList mappings for all episodes in this season"
+              mat-stroked-button
+              class="batch-btn"
+              matTooltip="Copy official AniList mappings for all episodes in this season"
               (click)="applyOfficialSeason.emit({ seasonNum: season.seasonNum })"
             >
               📋 Apply Official to Season
             </button>
             <button
-              class="btn btn-secondary btn-sm"
-              title="Mark all unmapped episodes in this season as skipped for AniList"
+              mat-stroked-button
+              class="batch-btn"
+              matTooltip="Mark all unmapped episodes in this season as skipped for AniList"
               (click)="skipUnmappedSeason.emit({ seasonNum: season.seasonNum })"
             >
               🌸 Skip Unmapped
@@ -146,7 +157,7 @@
                 <th style="min-width: 220px;">Title</th>
                 <th style="width: 190px;">Official AniList</th>
                 <th style="width: 270px;">Override AniList</th>
-                <th style="width: 180px; text-align: center;">Actions</th>
+                <th style="width: 240px; text-align: center;">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -170,5 +181,5 @@
         </div>
       }
     </div>
-  }
-</div>
+  </ng-template>
+</mat-expansion-panel>

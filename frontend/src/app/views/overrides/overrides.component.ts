@@ -7,6 +7,10 @@ import { SeriesCardComponent } from '../../components/series-card/series-card.co
 import { BulkImportModalComponent } from '../../components/modals/bulk-import-modal/bulk-import-modal.component';
 import { RetireRedundantModalComponent } from '../../components/modals/retire-redundant-modal/retire-redundant-modal.component';
 
+import { MatAccordion } from '@angular/material/expansion';
+import { MatButton } from '@angular/material/button';
+import { MatProgressSpinner } from '@angular/material/progress-spinner';
+
 @Component({
   selector: 'app-overrides-view',
   imports: [
@@ -16,6 +20,9 @@ import { RetireRedundantModalComponent } from '../../components/modals/retire-re
     SeriesCardComponent,
     BulkImportModalComponent,
     RetireRedundantModalComponent,
+    MatAccordion,
+    MatButton,
+    MatProgressSpinner,
   ],
   templateUrl: './overrides.component.html',
   styleUrl: './overrides.component.css',

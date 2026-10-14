@@ -1,4 +1,6 @@
 import { Component, computed, input, output } from '@angular/core';
+import { MatButton } from '@angular/material/button';
+import { MatTooltip } from '@angular/material/tooltip';
 import { OfficialEpisodeInfo, RawEpisodeOverride } from '../../models/types';
 import {
   isEpisodeMissingAniList,
@@ -8,6 +10,7 @@ import {
 
 @Component({
   selector: 'tr[app-episode-row]',
+  imports: [MatButton, MatTooltip],
   templateUrl: './episode-row.component.html',
   styleUrl: './episode-row.component.css',
   host: {

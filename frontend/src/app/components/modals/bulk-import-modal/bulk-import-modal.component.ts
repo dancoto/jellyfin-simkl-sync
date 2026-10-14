@@ -1,5 +1,9 @@
 import { Component, DestroyRef, inject, input, output, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { MatButton } from '@angular/material/button';
+import { MatCheckbox } from '@angular/material/checkbox';
+import { MatIcon } from '@angular/material/icon';
+import { MatProgressSpinner } from '@angular/material/progress-spinner';
 import { ApiService } from '../../../services/api.service';
 import { CatalogSyncResult } from '../../../models/types';
 
@@ -7,6 +11,7 @@ import { CatalogSyncResult } from '../../../models/types';
   selector: 'app-bulk-import-modal',
   templateUrl: './bulk-import-modal.component.html',
   styleUrl: './bulk-import-modal.component.css',
+  imports: [MatButton, MatCheckbox, MatIcon, MatProgressSpinner],
 })
 export class BulkImportModalComponent {
   private api = inject(ApiService);

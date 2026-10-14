@@ -1,117 +1,134 @@
 <div class="controls-bar">
-  <div class="search-box">
-    <span class="search-icon">🔍</span>
-    <input
-      type="text"
-      [value]="search()"
-      placeholder="Search by title or TVDB ID..."
-      (input)="onSearchInput($event)"
-    />
+  <div class="inputs-row">
+    <mat-form-field appearance="outline" subscriptSizing="dynamic" class="search-field">
+      <mat-icon matPrefix class="search-icon">search</mat-icon>
+      <input
+        matInput
+        type="text"
+        [value]="search()"
+        placeholder="Search by title or TVDB ID..."
+        (input)="onSearchInput($event)"
+      />
+    </mat-form-field>
+
+    <mat-form-field appearance="outline" subscriptSizing="dynamic" class="sort-field">
+      <mat-label>Sort By</mat-label>
+      <mat-select [value]="sort()" (selectionChange)="sortChange.emit($event.value)">
+        <mat-option value="missing-desc">🌸 Most Missing AniList</mat-option>
+        <mat-option value="overridden-desc">⚡ Most Custom Overrides</mat-option>
+        <mat-option value="missing-asc">Least Missing AniList</mat-option>
+        <mat-option value="title-asc">Title (A → Z)</mat-option>
+        <mat-option value="default">Default (TVDB ID)</mat-option>
+      </mat-select>
+    </mat-form-field>
   </div>
 
-  <div class="sort-box">
-    <span class="sort-label">Sort:</span>
-    <select
-      [value]="sort()"
-      class="sort-select"
-      (change)="onSortChange($event)"
-    >
-      <option value="missing-desc">🌸 Most Missing AniList</option>
-      <option value="overridden-desc">⚡ Most Custom Overrides</option>
-      <option value="missing-asc">Least Missing AniList</option>
-      <option value="title-asc">Title (A → Z)</option>
-      <option value="default">Default (TVDB ID)</option>
-    </select>
-  </div>
+  <div class="actions-row">
+    <div class="filter-tabs">
+      <button
+        mat-stroked-button
+        class="filter-tab-btn"
+        [class.active]="filter() === 'all'"
+        (click)="filterChange.emit('all')"
+      >
+        All
+        @if (filterCounts(); as counts) {
+          <span class="tab-badge">{{ counts.all }}</span>
+        }
+      </button>
 
-  <div class="filter-tabs">
-    <button
-      class="filter-btn"
-      [class.active]="filter() === 'all'"
-      (click)="filterChange.emit('all')"
-    >
-      All Shows
-      @if (filterCounts(); as counts) {
-        <span class="tab-badge">{{ counts.all }}</span>
-      }
-    </button>
-    <button
-      class="filter-btn"
-      [class.active]="filter() === 'unmapped' || filter() === 'missing-anilist'"
-      (click)="filterChange.emit('unmapped')"
-    >
-      🌸 Only Missing AniList
-      @if (filterCounts(); as counts) {
-        <span class="tab-badge">{{ counts.unmapped }}</span>
-      }
-    </button>
-    <button
-      class="filter-btn"
-      [class.active]="filter() === 'overrides' || filter() === 'overridden'"
-      (click)="filterChange.emit('overrides')"
-    >
-      ⚡ Custom Overrides
-      @if (filterCounts(); as counts) {
-        <span class="tab-badge">{{ counts.overrides }}</span>
-      }
-    </button>
-    <button
-      class="filter-btn"
-      [class.active]="filter() === 'skipped' || filter() === 'skipped-anilist'"
-      (click)="filterChange.emit('skipped')"
-    >
-      🌸 Skipped AniList
-      @if (filterCounts(); as counts) {
-        <span class="tab-badge">{{ counts.skipped }}</span>
-      }
-    </button>
-    <button
-      class="filter-btn"
-      [class.active]="filter() === 'mapped' || filter() === 'complete'"
-      (click)="filterChange.emit('mapped')"
-    >
-      Completed
-      @if (filterCounts(); as counts) {
-        <span class="tab-badge">{{ counts.complete }}</span>
-      }
-    </button>
+      <button
+        mat-stroked-button
+        class="filter-tab-btn"
+        [class.active]="filter() === 'unmapped' || filter() === 'missing-anilist'"
+        (click)="filterChange.emit('unmapped')"
+      >
+        🌸 Missing
+        @if (filterCounts(); as counts) {
+          <span class="tab-badge">{{ counts.unmapped }}</span>
+        }
+      </button>
+
+      <button
+        mat-stroked-button
+        class="filter-tab-btn"
+        [class.active]="filter() === 'overrides' || filter() === 'overridden'"
+        (click)="filterChange.emit('overrides')"
+      >
+        ⚡ Overrides
+        @if (filterCounts(); as counts) {
+          <span class="tab-badge">{{ counts.overrides }}</span>
+        }
+      </button>
+
+      <button
+        mat-stroked-button
+        class="filter-tab-btn"
+        [class.active]="filter() === 'skipped' || filter() === 'skipped-anilist'"
+        (click)="filterChange.emit('skipped')"
+      >
+        🌸 Skipped
+        @if (filterCounts(); as counts) {
+          <span class="tab-badge">{{ counts.skipped }}</span>
+        }
+      </button>
+
+      <button
+        mat-stroked-button
+        class="filter-tab-btn"
+        [class.active]="filter() === 'mapped' || filter() === 'complete'"
+        (click)="filterChange.emit('mapped')"
+      >
+        Completed
+        @if (filterCounts(); as counts) {
+          <span class="tab-badge">{{ counts.complete }}</span>
+        }
+      </button>
+    </div>
 
     <div class="actions-group">
       <button
-        class="btn btn-secondary btn-sm"
+        mat-stroked-button
+        class="ctrl-btn"
         [disabled]="isSyncing()"
-        title="Scan Jellyfin anime libraries and refresh catalog cache"
+        matTooltip="Scan Jellyfin anime libraries and refresh catalog cache"
         (click)="syncLibrary.emit()"
       >
         @if (isSyncing()) {
-          <span class="spinner-inline">⏳</span>
+          <mat-progress-spinner diameter="14" mode="indeterminate" class="spinner-inline"></mat-progress-spinner>
         } @else {
-          <span>🔄</span>
+          <mat-icon class="btn-icon">sync</mat-icon>
         }
-        {{ isSyncing() ? 'Syncing Library...' : 'Sync Library' }}
+        {{ isSyncing() ? 'Syncing...' : 'Sync Library' }}
       </button>
 
       <button
-        class="btn btn-secondary btn-sm"
+        mat-stroked-button
+        class="ctrl-btn"
         [disabled]="isRetiring()"
-        title="Retire custom overrides that are 100% identical to official AniBridge mappings"
+        matTooltip="Retire custom overrides that are 100% identical to official AniBridge mappings"
         (click)="retireRedundant.emit()"
       >
-        🧹 Retire Redundant
+        <mat-icon class="btn-icon">cleaning_services</mat-icon>
+        Retire Redundant
       </button>
 
       <button
-        class="btn btn-secondary btn-sm"
-        title="Bulk import official AniBridge / anime-lists mappings into custom overrides"
+        mat-stroked-button
+        class="ctrl-btn"
+        matTooltip="Bulk import official AniBridge / anime-lists mappings into custom overrides"
         (click)="bulkImport.emit()"
       >
-        📥 Bulk Import
+        <mat-icon class="btn-icon">cloud_download</mat-icon>
+        Bulk Import
       </button>
 
       <button
-        class="btn btn-secondary btn-sm"
+        mat-stroked-button
+        class="ctrl-btn"
         (click)="toggleExpandAll.emit()"
       >
+        <mat-icon class="btn-icon">{{ allExpanded() ? 'unfold_less' : 'unfold_more' }}</mat-icon>
         {{ allExpanded() ? 'Collapse All' : 'Expand All' }}
       </button>
     </div>

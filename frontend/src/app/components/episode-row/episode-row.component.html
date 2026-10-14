@@ -1,12 +1,12 @@
 <td class="ep-num">E{{ epNum() }}</td>
-<td class="ep-name" [title]="epName()">{{ epName() }}</td>
+<td class="ep-name" [matTooltip]="epName()">{{ epName() }}</td>
 <td>
   @if (official(); as off) {
     <a
       [href]="'https://anilist.co/anime/' + off.anilistId"
       target="_blank"
       class="badge-official"
-      title="Official AniBridge / AnimeList mapping"
+      matTooltip="Official AniBridge / AnimeList mapping"
     >
       🌸 {{ off.anilistId }} <span class="official-sub">Ep {{ off.anilistEpisode }}</span> ↗
     </a>
@@ -23,43 +23,45 @@
       [class.null-val]="isIdNullVal()"
       [value]="anilistIdValue()"
       [placeholder]="idInputPlaceholder()"
-      title="Override AniList Media ID (leave blank to use official mapping, or type null to unmap)"
+      matTooltip="Override AniList Media ID (leave blank to use official mapping, or type null to unmap)"
       (change)="onIdChange($event)"
     />
     <input
       type="number"
       class="id-input ep-sub-input"
       [value]="anilistEpisodeValue()"
-      title="AniList Episode Number"
+      matTooltip="AniList Episode Number"
       (change)="onEpisodeChange($event)"
     />
-    <span class="override-pill" [class]="statusPill().class" [title]="statusPill().title">
+    <span class="override-pill" [class]="statusPill().class" [matTooltip]="statusPill().title">
       {{ statusPill().text }}
     </span>
   </div>
 </td>
 <td>
   <div class="row-actions">
-    @if (official()) {
-      <button
-        class="btn btn-secondary btn-xs"
-        title="Copy official AniList ID to override fields"
-        (click)="useOfficial.emit()"
-      >
-        📋 Official
-      </button>
-    }
     <button
-      class="btn btn-sm"
-      [class]="isAniListSkipped() ? 'btn-anilist-skipped' : 'btn-secondary'"
-      [title]="isAniListSkipped() ? 'AniList skipped. Click to unskip.' : 'Skip AniList for this episode (will use TVDB for Simkl)'"
+      mat-stroked-button
+      class="action-btn"
+      [disabled]="!official()"
+      matTooltip="Copy official AniList ID to override fields"
+      (click)="useOfficial.emit()"
+    >
+      📋 Official
+    </button>
+    <button
+      mat-stroked-button
+      class="action-btn"
+      [class.btn-anilist-skipped]="isAniListSkipped()"
+      [matTooltip]="isAniListSkipped() ? 'AniList skipped. Click to unskip.' : 'Skip AniList for this episode (will use TVDB for Simkl)'"
       (click)="toggleSkip.emit()"
     >
       🌸 {{ isAniListSkipped() ? 'Skipped' : 'Skip' }}
     </button>
     <button
-      class="btn btn-secondary btn-sm"
-      title="Clear override (defaults to official mapping, or null if unmapped)"
+      mat-stroked-button
+      class="action-btn"
+      matTooltip="Clear override (defaults to official mapping, or null if unmapped)"
       (click)="clearOverride.emit()"
     >
       ∅ Clear

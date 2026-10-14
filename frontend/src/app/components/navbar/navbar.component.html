@@ -1,29 +1,31 @@
-<header class="app-header">
+<mat-toolbar class="app-toolbar">
   <div class="header-container">
     <div class="brand">
       <span class="logo">⚡</span>
       <div>
-        <h1>Jellyfin Tracker Sync</h1>
+        <h1 class="brand-title">Jellyfin Tracker Sync</h1>
         <p class="subtitle">Scrobble anime & media to Simkl and AniList</p>
       </div>
     </div>
 
     <nav class="nav-links">
       <a
+        mat-button
         routerLink="/"
-        routerLinkActive="active"
+        routerLinkActive="active-nav-btn"
         [routerLinkActiveOptions]="{ exact: true }"
-        class="nav-link"
+        class="nav-btn"
       >
         🔑 Users & Auth
       </a>
       <a
+        mat-button
         routerLink="/overrides"
-        routerLinkActive="active"
-        class="nav-link"
+        routerLinkActive="active-nav-btn"
+        class="nav-btn"
       >
         🎬 Anime Overrides
       </a>
     </nav>
   </div>
-</header>
+</mat-toolbar>

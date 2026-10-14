@@ -26,7 +26,7 @@
     <!-- Loading State -->
     @if (store.isLoading()) {
       <div class="loading-container">
-        <span class="spinner">⏳</span>
+        <mat-progress-spinner diameter="40" mode="indeterminate"></mat-progress-spinner>
         <p>Loading anime catalog and overrides...</p>
       </div>
     } @else if (store.filteredShows().length === 0) {
@@ -49,7 +49,7 @@
         }
       </div>
     } @else {
-      <!-- Series List with Lazy DOM Accordion -->
+      <!-- Series List with Material Accordion -->
       <div class="series-list">
         <app-pagination
           [currentPage]="store.currentPage()"
@@ -59,27 +59,29 @@
           (pageSizeChange)="store.setPageSize($event)"
         />
 
-        @for (entry of store.paginatedShows(); track entry[0]) {
-          <app-series-card
-            [tvdbId]="entry[0]"
-            [show]="entry[1]"
-            [overrideShow]="store.overridesData()[entry[0]]"
-            [officialShow]="store.officialData()[entry[0]]"
-            [isModified]="store.dirtyShows().includes(entry[0])"
-            [isOpen]="store.allExpanded() || store.openCards().includes(entry[0])"
-            [isSyncing]="store.syncingSeriesIds().includes(entry[0])"
-            (toggleOpen)="store.toggleCard(entry[0])"
-            (syncSeries)="store.syncSeries($event)"
-            (saveSeries)="store.saveShow($event)"
-            (updateEpisode)="store.updateEpisode(entry[0], $event)"
-            (useOfficialEpisode)="store.useOfficialEpisode(entry[0], $event)"
-            (toggleSkipEpisode)="store.toggleSkipEpisode(entry[0], $event)"
-            (clearOverrideEpisode)="store.clearOverrideEpisode(entry[0], $event)"
-            (applyBatchSeason)="store.applyBatchSeason(entry[0], $event)"
-            (applyOfficialSeason)="store.applyOfficialSeason(entry[0], $event)"
-            (skipUnmappedSeason)="store.skipUnmappedSeason(entry[0], $event)"
-          />
-        }
+        <mat-accordion multi="true" displayMode="flat" class="series-accordion">
+          @for (entry of store.paginatedShows(); track entry[0]) {
+            <app-series-card
+              [tvdbId]="entry[0]"
+              [show]="entry[1]"
+              [overrideShow]="store.overridesData()[entry[0]]"
+              [officialShow]="store.officialData()[entry[0]]"
+              [isModified]="store.dirtyShows().includes(entry[0])"
+              [isOpen]="store.allExpanded() || store.openCardsSet().has(entry[0])"
+              [isSyncing]="store.syncingSeriesIds().includes(entry[0])"
+              (toggleOpen)="store.toggleCard(entry[0])"
+              (syncSeries)="store.syncSeries($event)"
+              (saveSeries)="store.saveShow($event)"
+              (updateEpisode)="store.updateEpisode(entry[0], $event)"
+              (useOfficialEpisode)="store.useOfficialEpisode(entry[0], $event)"
+              (toggleSkipEpisode)="store.toggleSkipEpisode(entry[0], $event)"
+              (clearOverrideEpisode)="store.clearOverrideEpisode(entry[0], $event)"
+              (applyBatchSeason)="store.applyBatchSeason(entry[0], $event)"
+              (applyOfficialSeason)="store.applyOfficialSeason(entry[0], $event)"
+              (skipUnmappedSeason)="store.skipUnmappedSeason(entry[0], $event)"
+            />
+          }
+        </mat-accordion>
 
         <app-pagination
           [currentPage]="store.currentPage()"
@@ -98,13 +100,13 @@
       <span class="save-banner-text">
         ⚡ {{ store.dirtyShows().length }} show(s) modified
       </span>
-      <button class="btn btn-primary" [disabled]="store.isSaving()" (click)="store.saveAllChanges()">
+      <button mat-flat-button class="save-btn" [disabled]="store.isSaving()" (click)="store.saveAllChanges()">
         @if (store.isSaving()) {
-          <span class="spinner-inline">⏳</span>
+          <mat-progress-spinner diameter="16" mode="indeterminate" class="spinner-inline"></mat-progress-spinner>
+          Saving Changes...
         } @else {
-          <span>💾</span>
+          💾 Save All Changes
         }
-        {{ store.isSaving() ? 'Saving Changes...' : 'Save All Changes' }}
       </button>
     </div>
   }

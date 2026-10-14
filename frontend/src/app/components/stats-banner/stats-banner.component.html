@@ -1,51 +1,66 @@
 <div class="stats-grid">
-  <div
+  <mat-card
     class="stat-card"
+    appearance="outlined"
     [class.active]="selectedFilter() === 'all'"
     (click)="selectFilter.emit('all')"
   >
-    <div class="stat-label">Total Anime Shows</div>
-    <div class="stat-val">{{ summary()?.totalShows ?? '...' }}</div>
-    <div class="stat-sub">{{ summary()?.totalEpisodes ?? 0 }} total episodes</div>
-  </div>
+    <mat-card-content class="stat-content">
+      <div class="stat-label">Total Anime Shows</div>
+      <div class="stat-val">{{ summary()?.totalShows ?? '...' }}</div>
+      <div class="stat-sub">{{ summary()?.totalEpisodes ?? 0 }} total episodes</div>
+    </mat-card-content>
+  </mat-card>
 
-  <div
+  <mat-card
     class="stat-card"
+    appearance="outlined"
     [class.active]="selectedFilter() === 'unmapped'"
     (click)="selectFilter.emit('unmapped')"
   >
-    <div class="stat-label">Missing AniList</div>
-    <div class="stat-val stat-val-danger">{{ summary()?.unmappedEpisodes ?? '...' }}</div>
-    <div class="stat-sub">Episodes unmapped</div>
-  </div>
+    <mat-card-content class="stat-content">
+      <div class="stat-label">Missing AniList</div>
+      <div class="stat-val stat-val-danger">{{ summary()?.unmappedEpisodes ?? '...' }}</div>
+      <div class="stat-sub">Episodes unmapped</div>
+    </mat-card-content>
+  </mat-card>
 
-  <div
+  <mat-card
     class="stat-card"
+    appearance="outlined"
     [class.active]="selectedFilter() === 'overrides'"
     (click)="selectFilter.emit('overrides')"
   >
-    <div class="stat-label">Custom Overrides</div>
-    <div class="stat-val stat-val-warn">{{ summary()?.showsWithOverrides ?? '...' }}</div>
-    <div class="stat-sub">Shows with manual overrides</div>
-  </div>
+    <mat-card-content class="stat-content">
+      <div class="stat-label">Custom Overrides</div>
+      <div class="stat-val stat-val-warn">{{ summary()?.showsWithOverrides ?? '...' }}</div>
+      <div class="stat-sub">Shows with manual overrides</div>
+    </mat-card-content>
+  </mat-card>
 
-  <div
+  <mat-card
     class="stat-card"
+    appearance="outlined"
     [class.active]="selectedFilter() === 'skipped'"
     (click)="selectFilter.emit('skipped')"
   >
-    <div class="stat-label">AniList Skipped</div>
-    <div class="stat-val stat-val-purple">{{ summary()?.skippedEpisodes ?? '...' }}</div>
-    <div class="stat-sub">Specials / Non-AniList</div>
-  </div>
+    <mat-card-content class="stat-content">
+      <div class="stat-label">AniList Skipped</div>
+      <div class="stat-val stat-val-purple">{{ summary()?.skippedEpisodes ?? '...' }}</div>
+      <div class="stat-sub">Specials / Non-AniList</div>
+    </mat-card-content>
+  </mat-card>
 
-  <div
+  <mat-card
     class="stat-card"
+    appearance="outlined"
     [class.active]="selectedFilter() === 'mapped'"
     (click)="selectFilter.emit('mapped')"
   >
-    <div class="stat-label">AniList Coverage</div>
-    <div class="stat-val stat-val-success">{{ coveragePercent() }}%</div>
-    <div class="stat-sub">{{ summary()?.mappedEpisodes ?? 0 }} mapped episodes</div>
-  </div>
+    <mat-card-content class="stat-content">
+      <div class="stat-label">AniList Coverage</div>
+      <div class="stat-val stat-val-success">{{ coveragePercent() }}%</div>
+      <div class="stat-sub">{{ summary()?.mappedEpisodes ?? 0 }} mapped episodes</div>
+    </mat-card-content>
+  </mat-card>
 </div>

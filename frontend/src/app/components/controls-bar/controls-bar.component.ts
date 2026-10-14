@@ -1,7 +1,26 @@
 import { Component, input, output } from '@angular/core';
+import { MatButton } from '@angular/material/button';
+import { MatFormField, MatLabel, MatPrefix } from '@angular/material/form-field';
+import { MatIcon } from '@angular/material/icon';
+import { MatInput } from '@angular/material/input';
+import { MatOption, MatSelect } from '@angular/material/select';
+import { MatTooltip } from '@angular/material/tooltip';
+import { MatProgressSpinner } from '@angular/material/progress-spinner';
 
 @Component({
   selector: 'app-controls-bar',
+  imports: [
+    MatButton,
+    MatFormField,
+    MatLabel,
+    MatPrefix,
+    MatIcon,
+    MatInput,
+    MatOption,
+    MatSelect,
+    MatTooltip,
+    MatProgressSpinner,
+  ],
   templateUrl: './controls-bar.component.html',
   styleUrl: './controls-bar.component.css',
 })
@@ -31,10 +50,5 @@ export class ControlsBarComponent {
   onSearchInput(event: Event) {
     const val = (event.target as HTMLInputElement).value;
     this.searchChange.emit(val);
-  }
-
-  onSortChange(event: Event) {
-    const val = (event.target as HTMLSelectElement).value;
-    this.sortChange.emit(val);
   }
 }
