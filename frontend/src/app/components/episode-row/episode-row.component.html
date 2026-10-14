@@ -1,0 +1,72 @@
+<td class="ep-num">E{{ epNum() }}</td>
+<td class="ep-name" [matTooltip]="epName()">{{ epName() }}</td>
+<td>
+  @if (official(); as off) {
+    <a
+      [href]="'https://anilist.co/anime/' + off.anilistId"
+      target="_blank"
+      class="badge-official"
+      matTooltip="Official AniBridge / AnimeList mapping"
+    >
+      🌸 {{ off.anilistId }} <span class="official-sub">Ep {{ off.anilistEpisode }}</span> ↗
+    </a>
+  } @else {
+    <span class="badge-none">None / Unmapped</span>
+  }
+</td>
+<td>
+  <div class="id-input-group">
+    <input
+      type="text"
+      inputmode="numeric"
+      class="id-input"
+      [class.null-val]="isIdNullVal()"
+      [value]="anilistIdValue()"
+      [placeholder]="idInputPlaceholder()"
+      matTooltip="Override AniList Media ID (leave blank to use official mapping, or type null to unmap)"
+      (change)="onIdChange($event)"
+    />
+    <input
+      type="number"
+      class="id-input ep-sub-input"
+      [value]="anilistEpisodeValue()"
+      matTooltip="AniList Episode Number"
+      (change)="onEpisodeChange($event)"
+    />
+    @let pill = statusPill();
+    <span class="override-pill" [class]="pill.class" [matTooltip]="pill.title">
+      {{ pill.text }}
+    </span>
+  </div>
+</td>
+<td>
+  <div class="row-actions">
+    <button
+      mat-stroked-button
+      class="action-btn"
+      [disabled]="!official()"
+      matTooltip="Copy official AniList ID to override fields"
+      (click)="useOfficial.emit()"
+    >
+      📋 Official
+    </button>
+    @let skipped = isAniListSkipped();
+    <button
+      mat-stroked-button
+      class="action-btn"
+      [class.btn-anilist-skipped]="skipped"
+      [matTooltip]="skipped ? 'AniList skipped. Click to unskip.' : 'Skip AniList for this episode (will use TVDB for Simkl)'"
+      (click)="toggleSkip.emit()"
+    >
+      🌸 {{ skipped ? 'Skipped' : 'Skip' }}
+    </button>
+    <button
+      mat-stroked-button
+      class="action-btn"
+      matTooltip="Clear override (defaults to official mapping, or null if unmapped)"
+      (click)="clearOverride.emit()"
+    >
+      ∅ Clear
+    </button>
+  </div>
+</td>

@@ -1,0 +1,281 @@
+:host {
+  display: block;
+  margin-bottom: 0.75rem;
+}
+
+mat-expansion-panel.series-card {
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: 10px;
+  overflow: hidden;
+  box-shadow: none;
+  margin: 0;
+  transition: border-color 0.2s;
+}
+
+mat-expansion-panel.series-card.mat-expansion-panel-spacing {
+  margin: 0;
+}
+
+:host ::ng-deep .series-card .mat-expansion-panel-body {
+  padding: 0;
+}
+
+mat-expansion-panel.series-card.modified {
+  border-color: var(--warning);
+}
+
+mat-expansion-panel-header.series-header {
+  padding: 0.85rem 1.25rem;
+  min-height: 64px;
+  background: rgba(0, 0, 0, 0.15);
+}
+
+mat-panel-title.series-title-group {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  text-align: left;
+  gap: 0.4rem;
+  margin-right: 1rem;
+}
+
+.series-title {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  text-align: left;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.modified-tag {
+  color: var(--warning);
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.series-badges {
+  display: flex;
+  gap: 0.35rem;
+  align-items: center;
+  justify-content: flex-start;
+  flex-wrap: wrap;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0 0.5rem;
+  height: 22px;
+  line-height: 22px;
+  border-radius: 4px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-decoration: none;
+  box-sizing: border-box;
+}
+
+.badge-tvdb {
+  background: rgba(14, 165, 233, 0.15);
+  color: #38bdf8;
+  border: 1px solid rgba(56, 189, 248, 0.3);
+}
+
+.badge-tvdb:hover {
+  background: rgba(14, 165, 233, 0.25);
+}
+
+.badge-tmdb {
+  background: rgba(16, 185, 129, 0.15);
+  color: #34d399;
+  border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+.badge-search {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-muted);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.badge-search:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.badge-missing {
+  background: var(--warning-bg);
+  color: #fbbf24;
+}
+
+.badge-ok {
+  background: var(--success-bg);
+  color: #34d399;
+}
+
+.badge-custom {
+  background: rgba(245, 158, 11, 0.15);
+  color: #fbbf24;
+  border: 1px solid rgba(245, 158, 11, 0.3);
+}
+
+.badge-anilist-skipped {
+  background: rgba(192, 132, 252, 0.15);
+  color: #c084fc;
+  border: 1px solid rgba(192, 132, 252, 0.3);
+}
+
+.series-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-right: 0.5rem;
+}
+
+button.header-btn {
+  height: 32px;
+  line-height: 32px;
+  padding: 0 0.75rem;
+  font-size: 0.78rem;
+  font-weight: 500;
+  border-radius: 6px;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.btn-icon {
+  font-size: 16px;
+  width: 16px;
+  height: 16px;
+  line-height: 16px;
+}
+
+.spinner-inline {
+  display: inline-block;
+  margin-right: 0.25rem;
+}
+
+.series-body {
+  padding: 1.25rem;
+  background: #0e1422;
+  contain: paint;
+  box-sizing: border-box;
+  overflow-x: auto;
+}
+
+.season-section {
+  margin-bottom: 1.5rem;
+}
+
+.season-section:last-child {
+  margin-bottom: 0;
+}
+
+.season-header {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #fff;
+  margin-bottom: 0.75rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  padding-bottom: 0.4rem;
+}
+
+.season-title-box {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.season-counts {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.count-missing {
+  color: var(--anilist-pink);
+  font-weight: 600;
+}
+
+.count-overridden {
+  color: #fbbf24;
+  font-weight: 600;
+}
+
+.count-skipped {
+  color: #c084fc;
+}
+
+.batch-fill-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+  background: rgba(255, 255, 255, 0.02);
+  padding: 0.5rem 0.75rem;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.04);
+  flex-wrap: wrap;
+}
+
+.batch-label {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.id-input {
+  background: var(--input-bg);
+  border: 1px solid var(--card-border);
+  color: #fff;
+  padding: 0 0.5rem;
+  height: 28px;
+  line-height: 28px;
+  border-radius: 4px;
+  font-size: 0.8125rem;
+  font-family: monospace;
+  width: 140px;
+  outline: none;
+  box-sizing: border-box;
+  transition: border-color 0.2s;
+}
+
+.id-input:focus {
+  border-color: var(--accent);
+}
+
+button.batch-btn {
+  height: 28px;
+  line-height: 28px;
+  padding: 0 0.65rem;
+  font-size: 0.75rem;
+  border-radius: 4px;
+  border-color: var(--card-border);
+  color: var(--text);
+}
+
+.ep-table {
+  width: 100%;
+  table-layout: fixed;
+  border-collapse: collapse;
+  font-size: 0.8125rem;
+}
+
+.ep-table th {
+  text-align: left;
+  padding: 0.45rem 0.5rem;
+  color: var(--text-muted);
+  font-weight: 600;
+  border-bottom: 1px solid var(--card-border);
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}

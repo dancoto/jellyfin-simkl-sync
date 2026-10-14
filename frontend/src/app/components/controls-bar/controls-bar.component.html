@@ -1,0 +1,139 @@
+<div class="controls-bar">
+  <div class="inputs-row">
+    <mat-form-field appearance="outline" subscriptSizing="dynamic" class="search-field">
+      <mat-icon matPrefix class="search-icon">search</mat-icon>
+      <input
+        matInput
+        type="text"
+        [value]="search()"
+        placeholder="Search by title or TVDB ID..."
+        (input)="onSearchInput($event)"
+      />
+    </mat-form-field>
+
+    <mat-form-field appearance="outline" subscriptSizing="dynamic" class="sort-field">
+      <mat-label>Sort By</mat-label>
+      <mat-select [value]="sort()" (selectionChange)="sortChange.emit($event.value)">
+        <mat-option value="missing-desc">🌸 Most Missing AniList</mat-option>
+        <mat-option value="overridden-desc">⚡ Most Custom Overrides</mat-option>
+        <mat-option value="missing-asc">Least Missing AniList</mat-option>
+        <mat-option value="title-asc">Title (A → Z)</mat-option>
+        <mat-option value="default">Default (TVDB ID)</mat-option>
+      </mat-select>
+    </mat-form-field>
+  </div>
+
+  <div class="actions-row">
+    @let counts = filterCounts();
+    @let f = filter();
+
+    <div class="filter-tabs">
+      <button
+        mat-stroked-button
+        class="filter-tab-btn"
+        [class.active]="f === 'all'"
+        (click)="filterChange.emit('all')"
+      >
+        All
+        @if (counts) {
+          <span class="tab-badge">{{ counts.all }}</span>
+        }
+      </button>
+
+      <button
+        mat-stroked-button
+        class="filter-tab-btn"
+        [class.active]="f === 'unmapped' || f === 'missing-anilist'"
+        (click)="filterChange.emit('unmapped')"
+      >
+        🌸 Missing
+        @if (counts) {
+          <span class="tab-badge">{{ counts.unmapped }}</span>
+        }
+      </button>
+
+      <button
+        mat-stroked-button
+        class="filter-tab-btn"
+        [class.active]="f === 'overrides' || f === 'overridden'"
+        (click)="filterChange.emit('overrides')"
+      >
+        ⚡ Overrides
+        @if (counts) {
+          <span class="tab-badge">{{ counts.overrides }}</span>
+        }
+      </button>
+
+      <button
+        mat-stroked-button
+        class="filter-tab-btn"
+        [class.active]="f === 'skipped' || f === 'skipped-anilist'"
+        (click)="filterChange.emit('skipped')"
+      >
+        🌸 Skipped
+        @if (counts) {
+          <span class="tab-badge">{{ counts.skipped }}</span>
+        }
+      </button>
+
+      <button
+        mat-stroked-button
+        class="filter-tab-btn"
+        [class.active]="f === 'mapped' || f === 'complete'"
+        (click)="filterChange.emit('mapped')"
+      >
+        Completed
+        @if (counts) {
+          <span class="tab-badge">{{ counts.complete }}</span>
+        }
+      </button>
+    </div>
+
+    <div class="actions-group">
+      <button
+        mat-stroked-button
+        class="ctrl-btn"
+        [disabled]="isSyncing()"
+        matTooltip="Scan Jellyfin anime libraries and refresh catalog cache"
+        (click)="syncLibrary.emit()"
+      >
+        @if (isSyncing()) {
+          <mat-progress-spinner diameter="14" mode="indeterminate" class="spinner-inline"></mat-progress-spinner>
+        } @else {
+          <mat-icon class="btn-icon">sync</mat-icon>
+        }
+        {{ isSyncing() ? 'Syncing...' : 'Sync Library' }}
+      </button>
+
+      <button
+        mat-stroked-button
+        class="ctrl-btn"
+        [disabled]="isRetiring()"
+        matTooltip="Retire custom overrides that are 100% identical to official AniBridge mappings"
+        (click)="retireRedundant.emit()"
+      >
+        <mat-icon class="btn-icon">cleaning_services</mat-icon>
+        Retire Redundant
+      </button>
+
+      <button
+        mat-stroked-button
+        class="ctrl-btn"
+        matTooltip="Bulk import official AniBridge / anime-lists mappings into custom overrides"
+        (click)="bulkImport.emit()"
+      >
+        <mat-icon class="btn-icon">cloud_download</mat-icon>
+        Bulk Import
+      </button>
+
+      <button
+        mat-stroked-button
+        class="ctrl-btn"
+        (click)="toggleExpandAll.emit()"
+      >
+        <mat-icon class="btn-icon">{{ allExpanded() ? 'unfold_less' : 'unfold_more' }}</mat-icon>
+        {{ allExpanded() ? 'Collapse All' : 'Expand All' }}
+      </button>
+    </div>
+  </div>
+</div>

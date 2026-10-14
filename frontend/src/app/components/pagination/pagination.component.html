@@ -1,0 +1,71 @@
+@let total = totalItems();
+@if (total > 0) {
+  @let page = currentPage();
+  @let maxPages = totalPages();
+  <div class="pagination-container">
+    <div class="pagination-info">
+      Showing <strong>{{ startItem() }} - {{ endItem() }}</strong> of <strong>{{ total }}</strong> shows
+    </div>
+
+    <div class="pagination-controls">
+      <button
+        mat-icon-button
+        class="p-icon-btn"
+        [disabled]="page === 1"
+        title="First page"
+        (click)="goToPage(1)"
+      >
+        <mat-icon class="p-icon">first_page</mat-icon>
+      </button>
+      <button
+        mat-icon-button
+        class="p-icon-btn"
+        [disabled]="page === 1"
+        title="Previous page"
+        (click)="goToPage(page - 1)"
+      >
+        <mat-icon class="p-icon">chevron_left</mat-icon>
+      </button>
+
+      @for (p of visiblePages(); track p) {
+        <button
+          mat-button
+          class="p-num-btn"
+          [class.active]="p === page"
+          (click)="goToPage(p)"
+        >
+          {{ p }}
+        </button>
+      }
+
+      <button
+        mat-icon-button
+        class="p-icon-btn"
+        [disabled]="page === maxPages"
+        title="Next page"
+        (click)="goToPage(page + 1)"
+      >
+        <mat-icon class="p-icon">chevron_right</mat-icon>
+      </button>
+      <button
+        mat-icon-button
+        class="p-icon-btn"
+        [disabled]="page === maxPages"
+        title="Last page"
+        (click)="goToPage(maxPages)"
+      >
+        <mat-icon class="p-icon">last_page</mat-icon>
+      </button>
+    </div>
+
+    <div class="page-size-selector">
+      <span>Per page:</span>
+      <select [value]="pageSize()" class="size-select" (change)="handlePageSizeChange($event)">
+        <option [value]="25">25</option>
+        <option [value]="50">50</option>
+        <option [value]="100">100</option>
+        <option [value]="99999">All</option>
+      </select>
+    </div>
+  </div>
+}

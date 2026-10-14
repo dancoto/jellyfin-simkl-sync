@@ -1,9 +1,9 @@
 import { existsSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs';
+import path from 'node:path';
 import { describe, expect, test } from 'bun:test';
 import {
   handleGetOverrides,
   handleImportOverrides,
-  handleOverridesPage,
   handleRetireRedundantOverrides,
   handleSaveOverrides,
   handleSyncCatalog,
@@ -11,28 +11,12 @@ import {
 } from './api';
 
 describe('Overrides Web Endpoints', () => {
-  test('handleOverridesPage should return 200 with HTML content, official mapping column and catalog sync', async () => {
-    const res = handleOverridesPage();
-    expect(res.status).toBe(200);
-    expect(res.headers.get('Content-Type')).toContain('text/html');
-    const html = await res.text();
-    expect(html).toContain('data-filter="missing-anilist"');
-    expect(html).toContain('Only Missing AniList');
-    expect(html).toContain('sort-select');
-    expect(html).toContain('Most Missing AniList');
-    expect(html).toContain('data-filter="overridden"');
-    expect(html).toContain('Custom Overrides');
-    expect(html).toContain('data-filter="skipped-anilist"');
-    expect(html).toContain('stat-skipped-anilist');
-    expect(html).toContain('toggleEpSkipAniList');
-    expect(html).toContain('skipUnmappedSeasonAniList');
-    expect(html).toContain('Sync Library');
-    expect(html).toContain('Official AniList');
-    expect(html).toContain('Override AniList');
-    expect(html).toContain('Retire Redundant');
-    expect(html).toContain('retire-btn');
-    expect(html).toContain('Sync Series');
-    expect(html).toContain('sync-series-btn');
+  test('Single Page Application index should exist with app mount element', async () => {
+    const publicIndex = Bun.file(path.join(import.meta.dir, '..', 'public', 'index.html'));
+    expect(await publicIndex.exists()).toBe(true);
+    const html = await publicIndex.text();
+    expect(html).toContain('<app-root></app-root>');
+    expect(html).toContain('Jellyfin Tracker Sync');
   });
 
   test('handleGetOverrides should return 200 with overrides, catalog, filePath, and official mappings', async () => {

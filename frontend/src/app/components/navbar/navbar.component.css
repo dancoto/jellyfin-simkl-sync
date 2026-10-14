@@ -1,0 +1,69 @@
+mat-toolbar.app-toolbar {
+  background: var(--card-bg);
+  border-bottom: 1px solid var(--card-border);
+  height: auto;
+  padding: 0.85rem 1.5rem;
+  display: block;
+}
+
+.header-container {
+  max-width: 1280px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+}
+
+.logo {
+  font-size: 2rem;
+}
+
+.brand-title {
+  font-size: 1.35rem;
+  font-weight: 700;
+  color: #fff;
+  line-height: 1.2;
+  margin: 0;
+}
+
+.subtitle {
+  color: var(--text-muted);
+  font-size: 0.82rem;
+  margin: 0;
+}
+
+.nav-links {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+a.nav-btn {
+  font-weight: 600;
+  font-size: 0.88rem;
+  border-radius: 8px;
+  border: 1px solid var(--card-border);
+  color: var(--text-muted);
+  background: var(--input-bg);
+  height: 38px;
+  padding: 0 1rem;
+}
+
+a.nav-btn:hover {
+  color: #fff;
+  border-color: var(--accent);
+}
+
+a.nav-btn.active-nav-btn {
+  color: #fff;
+  border-color: var(--accent);
+  background: rgba(56, 189, 248, 0.12);
+}

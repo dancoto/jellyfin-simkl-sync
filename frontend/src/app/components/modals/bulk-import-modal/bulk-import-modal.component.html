@@ -1,0 +1,94 @@
+@if (isOpen()) {
+  <div class="modal-backdrop" (click)="handleClose()">
+    <div class="modal-dialog" (click)="$event.stopPropagation()">
+      <div class="modal-header">
+        <div class="modal-title-row">
+          <mat-icon class="header-icon">sync</mat-icon>
+          <h3>Jellyfin Library Sync & Catalog Scan</h3>
+        </div>
+        <button mat-icon-button (click)="handleClose()" aria-label="Close dialog">
+          <mat-icon>close</mat-icon>
+        </button>
+      </div>
+
+      <div class="modal-body">
+        @if (!summaryResult() && !isLoading()) {
+          <div>
+            <p class="desc">
+              Scans your configured Jellyfin server anime libraries, builds the local catalog cache,
+              and detects added or removed episodes and series.
+            </p>
+
+            <div class="option-row">
+              <mat-checkbox
+                [checked]="pruneDeleted()"
+                (change)="pruneDeleted.set($event.checked)"
+              >
+                Clean up deleted / moved episodes from overrides
+              </mat-checkbox>
+              <p class="option-hint">
+                Automatically prunes custom overrides for episodes that no longer exist on disk or in Jellyfin.
+              </p>
+            </div>
+          </div>
+        }
+
+        @if (isLoading()) {
+          <div class="loading-state">
+            <mat-progress-spinner mode="indeterminate" diameter="36" />
+            <p>Scanning Jellyfin anime libraries...</p>
+          </div>
+        }
+
+        @if (summaryResult(); as summary) {
+          <div class="result-box">
+            <div class="result-title">
+              <mat-icon class="success-icon">check_circle</mat-icon>
+              <h4>Jellyfin Library Scanned Successfully!</h4>
+            </div>
+            <div class="stats-summary">
+              <div><strong>Shows in Catalog:</strong> {{ summary.catalogShowsCount }}</div>
+              <div><strong>Episodes in Catalog:</strong> {{ summary.catalogEpisodesCount }}</div>
+              @if (summary.prunedOverridesCount) {
+                <div>
+                  <strong>Pruned Deleted Overrides:</strong> {{ summary.prunedOverridesCount }}
+                </div>
+              }
+              @if (summary.prunedShowsCount) {
+                <div>
+                  <strong>Pruned Deleted Shows:</strong> {{ summary.prunedShowsCount }}
+                </div>
+              }
+            </div>
+          </div>
+        }
+
+        @if (errorMessage(); as err) {
+          <div class="error-msg">
+            {{ err }}
+          </div>
+        }
+      </div>
+
+      <div class="modal-footer">
+        @if (!summaryResult()) {
+          <button mat-stroked-button [disabled]="isLoading()" (click)="handleClose()">
+            Cancel
+          </button>
+          <button
+            mat-flat-button
+            color="primary"
+            [disabled]="isLoading()"
+            (click)="handleSync()"
+          >
+            {{ isLoading() ? 'Scanning...' : 'Start Library Sync' }}
+          </button>
+        } @else {
+          <button mat-flat-button color="primary" (click)="handleClose()">
+            Done
+          </button>
+        }
+      </div>
+    </div>
+  </div>
+}

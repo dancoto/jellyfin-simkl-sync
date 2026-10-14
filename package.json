@@ -10,8 +10,11 @@
   "scripts": {
     "start": "bun index.ts",
     "dev": "bun --watch index.ts",
+    "dev:frontend": "cd frontend && bun start",
+    "build:frontend": "cd frontend && bun run build",
+    "build": "bun run build:frontend",
     "test": "bun test",
-    "lint": "oxlint && tsc --noEmit",
+    "lint": "oxlint && tsc --noEmit && (cd frontend && bun run build)",
     "format": "oxfmt",
     "format:check": "oxfmt --check"
   },

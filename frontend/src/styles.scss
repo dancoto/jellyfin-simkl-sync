@@ -1,0 +1,79 @@
+@use '@angular/material' as mat;
+
+html {
+  color-scheme: dark;
+  @include mat.theme((
+    color: (
+      primary: mat.$azure-palette,
+      tertiary: mat.$cyan-palette,
+      theme-type: dark,
+    ),
+    typography: Roboto,
+    density: 0,
+  ));
+}
+
+:root {
+  --bg: #0b0f19;
+  --card-bg: #151d2e;
+  --card-border: #222f46;
+  --text: #f1f5f9;
+  --text-muted: #94a3b8;
+  --accent: #38bdf8;
+  --accent-hover: #0284c7;
+  --anilist: #02a9ff;
+  --anilist-hover: #008ecc;
+  --anilist-pink: #f472b6;
+  --success: #10b981;
+  --success-bg: rgba(16, 185, 129, 0.15);
+  --danger: #ef4444;
+  --danger-bg: rgba(239, 68, 68, 0.15);
+  --warning: #f59e0b;
+  --warning-bg: rgba(245, 158, 11, 0.15);
+  --input-bg: #0d1525;
+
+  /* Material dark theme overrides for cohesive slate palette */
+  --mat-sys-surface: #151d2e;
+  --mat-sys-surface-container: #151d2e;
+  --mat-sys-surface-container-low: #0f172a;
+  --mat-sys-surface-container-high: #1e293b;
+  --mat-sys-background: #0b0f19;
+  --mat-sys-on-surface: #f1f5f9;
+  --mat-sys-on-background: #f1f5f9;
+  --mat-sys-outline: #222f46;
+  --mat-sys-outline-variant: #334155;
+  --mat-sys-primary: #38bdf8;
+  --mat-sys-on-primary: #0b0f19;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  font-family: Roboto, -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+}
+
+body {
+  background-color: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+app-root {
+  width: 100%;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.container {
+  max-width: 1280px;
+  width: 100%;
+  margin: 0 auto;
+  padding: 1.5rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
