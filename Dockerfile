@@ -1,5 +1,5 @@
-# Stage 1: Build the Angular 22 frontend
-FROM node:22-alpine AS frontend-builder
+# Stage 1: Build the Angular frontend
+FROM node:24-alpine AS frontend-builder
 WORKDIR /usr/src/frontend
 COPY --from=oven/bun:1-alpine /usr/local/bin/bun /usr/local/bin/bun
 COPY frontend/package.json frontend/bun.lock ./
